@@ -15,9 +15,11 @@
     "dev": "pnpm -r --parallel run dev",
     "compose:up": "docker compose -f infra/docker-compose.yml up -d --build",
     "compose:down": "docker compose -f infra/docker-compose.yml down -v",
-    "smoke": "bash scripts/smoke.sh"
+    "smoke": "bash scripts/smoke.sh",
+    "test:conformance:smoke": "bash scripts/run-newman-smoke.sh"
   },
   "devDependencies": {
+    "newman": "6.2.2",
     "typescript": "5.9.3"
   }
 }

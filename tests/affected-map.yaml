@@ -75,6 +75,8 @@ full_triggers:
   - "vitest.config.*"
   - "apps/*/vitest.config.*"
   - "tests/affected-map.yaml"
+  - "tests/api/collections/**"
+  - "scripts/run-newman-smoke.sh"
 
 scopes:
   # ─── Backend scopes ──────────────────────────────────────────────
