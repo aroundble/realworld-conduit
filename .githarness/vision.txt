@@ -1,0 +1,44 @@
+RealWorld spec implementation — Medium.com-style blogging platform.
+
+Pilot #3 for the githarness harness. Benchmark-oriented: the RealWorld
+project (https://realworld-docs.netlify.app/) defines a strict API + UI
+spec with 100+ open-source implementations across every framework
+combination. Uniquely suitable for measurable gap-analysis — compare our
+output against top-rated OSS implementations by Lighthouse, E2E pass
+rate, code quality lint, a11y, bundle size, with precise numeric
+deltas rather than speculative percentages.
+
+North star: produce a RealWorld implementation that scores in the top
+10% of published OSS implementations across:
+- Lighthouse Performance ≥ 90
+- Lighthouse Accessibility ≥ 95
+- RealWorld API spec conformance (Postman/Newman) = 100%
+- RealWorld UI spec conformance (Playwright) = 100%
+- Bundle size within the 25th percentile of OSS implementations
+- Zero ESLint errors, TypeScript strict mode, no `any`
+- All features covered by Given/When/Then scenarios
+
+Features (per spec — mandatory):
+- User registration, login, profile, settings
+- JWT-based auth via HTTP-only cookie
+- Article CRUD (title, description, markdown body, tags)
+- Article feed — global + personalised by follows
+- Article favorite / unfavorite
+- User follow / unfollow
+- Article comment CRUD
+- Tag-filtered article list
+- Responsive UI (desktop + mobile)
+
+Scope boundaries:
+- No push notifications, email, payment (not in spec)
+- No admin dashboard (not in spec)
+- Local-only deploy (docker compose); AWS deferred until after v1.0 is
+  feature-complete
+
+Explicit harness test goals:
+- Branch 6 (Market Intelligence): scan 100+ RealWorld implementations,
+  absorb/adapt top patterns
+- Branch 7 (Enterprise ladder): walk from Walking Skeleton to at least
+  Level 2 Scale within 72h of init with minimal operator injection
+
+Captured: 2026-04-28 (operator-provided).
