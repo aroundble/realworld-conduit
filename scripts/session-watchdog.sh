@@ -58,6 +58,7 @@ set -uo pipefail
 
 REPO="${HARNESS_REPO:?HARNESS_REPO required (e.g. org/project)}"
 ROLES="${HARNESS_ROLES:-planner generator evaluator}"
+export ROLES
 INTERVAL="${HARNESS_WATCHDOG_INTERVAL:-60}"
 STATE_DIR="${HARNESS_WATCHDOG_STATE_DIR:-/tmp/harness-watchdog}"
 STUCK_MAX="${HARNESS_WATCHDOG_STUCK_MAX:-3}"
@@ -76,6 +77,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 REPO_BASENAME="$(basename "$ROOT")"
 NEXT_SCRIPT="$ROOT/scripts/session-next-issue.sh"
 HARNESS_STATE_DIR="${HARNESS_STATE_DIR:-$ROOT/.githarness/state}"
+export HARNESS_STATE_DIR
 
 log() {
   printf '[%s] %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*"
@@ -678,6 +680,11 @@ EOF
 }
 
 check_refinement_wake() {
+  # v0.2.38: budget guard — skip refinement wake if 24h token
+  # budget was exceeded this cycle (set by run_cycle).
+  if [[ "${_HARNESS_SKIP_REFINEMENT:-0}" == "1" ]]; then
+    return 0
+  fi
   # When every role is truly idle (no work on any counter, no
   # in-flight claim, no rework pending), the default watchdog behavior
   # is to emit "$role: idle (idle)" every cycle and send no wake. That
@@ -826,6 +833,62 @@ run_cycle() {
   # refinement-loop issues. Generator / evaluator stay idle; they
   # wake naturally on the next cycle if planner files new work.
   check_refinement_wake
+  # v0.2.38: token-ledger sample — every tick, read the Claude Code
+  # session JSONL under ~/.claude/projects/<slugified-worktree>/*.jsonl
+  # and append a summary row to $HARNESS_STATE_DIR/token-ledger-<role>.jsonl.
+  # Precise per-turn data (input / cache_creation / cache_read / output);
+  # no regex scraping of transient pane footers.
+  for role in $ROLES; do
+    local wt
+    wt=$(worktree_for_role "$role")
+    [[ -d "$wt" ]] || continue
+    bash "$ROOT/scripts/token-ledger-sample.sh" "$role" "$wt" 2>/dev/null || true
+  done
+  # Budget guard: sum the latest-per-session totals across the
+  # three role ledgers, compared against HARNESS_TOKEN_BUDGET_24H_K
+  # (default 5000 k = 5M tokens). A breach logs and optionally
+  # suppresses refinement wake. Ledger rows carry exact counts from
+  # ~/.claude/projects/.../session.jsonl, not regex estimates.
+  local budget_k="${HARNESS_TOKEN_BUDGET_24H_K:-5000}"
+  if [[ "$budget_k" -gt 0 ]]; then
+    local total_24h_k
+    total_24h_k=$(python3 -c "
+import json, os, glob, datetime
+now = datetime.datetime.utcnow().timestamp()
+cutoff = now - 86400
+total = 0
+for role in os.environ.get('ROLES', 'planner generator evaluator').split():
+    f = f\"{os.environ.get('HARNESS_STATE_DIR', '.')}/token-ledger-{role}.jsonl\"
+    if not os.path.exists(f):
+        continue
+    by_session = {}
+    with open(f) as fh:
+        for line in fh:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                r = json.loads(line)
+            except Exception:
+                continue
+            ts = datetime.datetime.strptime(r['ts'], '%Y-%m-%dT%H:%M:%SZ').timestamp()
+            if ts < cutoff:
+                continue
+            sid = r.get('session_id', '')
+            prior = by_session.get(sid, 0)
+            tot = r.get('total_tokens', 0)
+            if tot > prior:
+                by_session[sid] = tot
+    total += sum(by_session.values())
+print(int(total // 1000))
+" 2>/dev/null || echo 0)
+    total_24h_k=${total_24h_k:-0}
+    if (( total_24h_k > budget_k )); then
+      log "BUDGET EXCEEDED: 24h tokens=${total_24h_k}k > budget=${budget_k}k"
+      [[ "${HARNESS_BUDGET_STOP_REFINEMENT:-0}" == "1" ]] && \
+        export _HARNESS_SKIP_REFINEMENT=1
+    fi
+  fi
   # T0: context overflow check for every role before any other wake.
   # A session past its context budget cannot be trusted to handle new
   # signals cleanly, so handoff preempts. Skip when the pane is
@@ -899,7 +962,7 @@ run_cycle() {
 log "watchdog starting — repo=$REPO roles=[$ROLES] interval=${INTERVAL}s state=$STATE_DIR stuck_max=$STUCK_MAX"
 
 while true; do
-  unset _HARNESS_BACKOFF
+  unset _HARNESS_BACKOFF _HARNESS_SKIP_REFINEMENT
   run_cycle || log "cycle error (continuing)"
   [[ "$ONESHOT" == "1" ]] && { log "oneshot mode — exiting"; exit 0; }
   # If poll_role signaled rate-limit backoff, sleep the longer of
