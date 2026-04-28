@@ -59,6 +59,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     needs: install
+    # Compose auto-discovers .env next to the compose file, not at the repo
+    # root, so every docker-compose invocation in this job passes
+    # --env-file .env explicitly — matching scripts/dev-bootstrap.sh output.
+    env:
+      COMPOSE: docker compose -f infra/docker-compose.yml --env-file .env
     steps:
       - uses: actions/checkout@v4
 
@@ -66,7 +71,7 @@ jobs:
         run: bash scripts/dev-bootstrap.sh
 
       - name: compose up
-        run: docker compose -f infra/docker-compose.yml up -d --build
+        run: $COMPOSE up -d --build
 
       - name: wait for healthy (postgres + api + web)
         run: |
@@ -82,7 +87,7 @@ jobs:
             done
             if [ "$state" != "healthy" ]; then
               echo "::error::${svc} never became healthy"
-              docker compose -f infra/docker-compose.yml logs "$svc" | tail -200
+              $COMPOSE logs "$svc" | tail -200
               exit 1
             fi
             echo "::endgroup::"
@@ -93,8 +98,8 @@ jobs:
 
       - name: compose logs on failure
         if: failure()
-        run: docker compose -f infra/docker-compose.yml logs --no-color --tail=200
+        run: $COMPOSE logs --no-color --tail=200
 
       - name: compose down
         if: always()
-        run: docker compose -f infra/docker-compose.yml down -v
+        run: $COMPOSE down -v

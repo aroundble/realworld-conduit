@@ -22,7 +22,7 @@ fi
 WEB_URL_HOST="${WEB_URL:-http://localhost:${WEB_HOST_PORT:-3000}}"
 API_URL_HOST="http://localhost:${API_HOST_PORT:-3001}"
 
-COMPOSE="docker compose -f infra/docker-compose.yml"
+COMPOSE="docker compose -f infra/docker-compose.yml --env-file .env"
 
 echo "[smoke] postgres health"
 if ! $COMPOSE ps postgres --format json | grep -q '"Health":"healthy"'; then
