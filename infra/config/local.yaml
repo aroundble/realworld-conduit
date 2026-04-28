@@ -1,0 +1,21 @@
+# Local env overrides (operator's laptop, docker compose).
+# Loaded as env vars by scripts/dev-bootstrap.sh.
+
+node_env: development
+log_level: debug
+
+postgres:
+  host_port: 5432
+
+api:
+  host_port: 3001
+  base_url_internal: http://api:3001
+  base_url_host: http://localhost:3001
+
+web:
+  host_port: 3000
+  base_url: http://localhost:3000
+
+cookie:
+  domain: localhost
+  secure: false
