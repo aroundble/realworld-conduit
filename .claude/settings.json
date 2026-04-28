@@ -1,0 +1,226 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "_comment": "Permissions allowlist (inspired by claude-quickstarts autonomous-coding security.py split-validation pattern). Projects extend the allow-list with their own stack-specific commands; the deny-list is the last line of defense even when hooks are bypassed. The Edit/Write path-glob entries (.husky, .github, .claude/*, .githarness) pre-approve paths that Claude Code otherwise treats as sensitive even under --dangerously-skip-permissions, which would otherwise stall a headless agent on an interactive y/n prompt. See https://docs.claude.com/en/docs/claude-code/settings#permissions for the schema.",
+    "allow": [
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)",
+      "Bash(git branch:*)",
+      "Bash(git worktree list:*)",
+      "Bash(gh issue list:*)",
+      "Bash(gh issue view:*)",
+      "Bash(gh pr list:*)",
+      "Bash(gh pr view:*)",
+      "Bash(gh pr diff:*)",
+      "Bash(gh label list:*)",
+      "Bash(gh api:*)",
+      "Bash(gh search:*)",
+      "Bash(ls:*)",
+      "Bash(cat:*)",
+      "Bash(pwd)",
+      "Bash(mkdir -p:*)",
+      "Bash(npm test:*)",
+      "Bash(npm run:*)",
+      "Bash(jq:*)",
+      "Read",
+      "Grep",
+      "Glob",
+      "Edit(.husky/**)",
+      "Write(.husky/**)",
+      "Edit(.github/**)",
+      "Write(.github/**)",
+      "Edit(.claude/commands/**)",
+      "Write(.claude/commands/**)",
+      "Edit(.claude/agents/**)",
+      "Write(.claude/agents/**)",
+      "Edit(.claude/skills/**)",
+      "Write(.claude/skills/**)",
+      "Edit(.githarness/**)",
+      "Write(.githarness/**)"
+    ],
+    "deny": [
+      "Bash(rm -rf /:*)",
+      "Bash(rm -rf ~:*)",
+      "Bash(rm -rf $HOME:*)",
+      "Bash(curl * | sh:*)",
+      "Bash(curl * | bash:*)",
+      "Bash(wget * | sh:*)"
+    ],
+    "_note": "allow = auto-approve without prompting the operator. deny = hard-block even when --dangerously-skip-permissions is set (never: wipe home directory, shell-pipe from the network)."
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PROJECT_DIR}/.claude/hooks/harness-state-activity.sh\""
+          }
+        ],
+        "description": "Touch .githarness/state/<role>.last-activity on every tool invocation. Watchdog compares this against .last-stop to decide busy vs. idle without scraping the TUI. Fail-open.",
+        "id": "pre:state-activity"
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/hooks/audit-log.js\""
+          }
+        ],
+        "description": "Append every tool invocation (pre-phase) to .githarness/audit/<date>.jsonl. Never blocks. Disable via HARNESS_AUDIT_DISABLED=1.",
+        "id": "pre:audit-log"
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx block-no-verify@1.1.2"
+          }
+        ],
+        "description": "Block --no-verify/--no-gpg-sign on git commit/push so pre-commit, commit-msg, and pre-push hooks cannot be bypassed.",
+        "id": "pre:bash:block-no-verify"
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/hooks/pre-bash-commit-quality.js\""
+          }
+        ],
+        "description": "Pre-commit quality check: scan staged files for console.log / debugger / hardcoded secrets (OpenAI / GitHub PAT / AWS keys), validate conventional-commit message format. Blocks commit on error-severity issues; warnings pass through.",
+        "id": "pre:bash:commit-quality"
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/hooks/pre-bash-commit-signoff.js\""
+          }
+        ],
+        "description": "Require every agent-authored git commit to carry a `Signed-off-by: <role>@githarness` trailer so `git log` shows which of the three roles authored each commit. All roles share one git identity; the trailer is the only attribution mechanism. No-op for ad-hoc sessions (HARNESS_SESSION_ROLE unset) and for --amend.",
+        "id": "pre:bash:commit-signoff"
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/hooks/pre-bash-gh-merge.js\""
+          }
+        ],
+        "description": "Block merges to the release branch (default 'main', override via HARNESS_RELEASE_BRANCH). The release branch is human-only; agents merge to the integration branch (typically 'latest') only.",
+        "id": "pre:bash:gh-merge-main"
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/hooks/pre-bash-gh-badge.js\""
+          }
+        ],
+        "description": "Require every agent-authored GitHub artifact (issue / PR / comment / review body) to begin with the role badge `[<role> @ <short-id>]`. All three agents share one GitHub identity; this badge is how the operator tells planner from generator from evaluator in the UI. No-op for ad-hoc sessions (HARNESS_SESSION_ROLE unset).",
+        "id": "pre:bash:gh-badge"
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/hooks/pre-bash-gh-issue-quality.js\""
+          }
+        ],
+        "description": "Block `gh issue create|edit` bodies that contain speculative blockers (e.g. '운영자 대기', 'wait for operator') or mis-route work (claim:evaluator on a body describing file-authoring). Such issues deadlock the loop because the claimed agent takes the speculation as fact and never attempts the action. The planner's Branch 5 (self-authored artifact audit) sweeps up anything that slips through.",
+        "id": "pre:bash:gh-issue-quality"
+      },
+      {
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/hooks/config-protection.js\""
+          }
+        ],
+        "description": "Block modifications to linter / formatter / TypeScript / Prettier config files so agents cannot silence checks instead of fixing source. Adapted from everything-claude-code under MIT license.",
+        "id": "pre:edit:config-protection"
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/hooks/audit-log.js\""
+          }
+        ],
+        "description": "Append every tool completion (post-phase) to .githarness/audit/<date>.jsonl.",
+        "id": "post:audit-log"
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/hooks/post-bash-pr-created.js\""
+          }
+        ],
+        "description": "After `gh pr create` completes, surface the PR URL + review command so the operator can jump straight to review. Adapted from everything-claude-code under MIT license.",
+        "id": "post:bash:pr-created"
+      },
+      {
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/hooks/post-edit-portability-check.js\""
+          }
+        ],
+        "description": "Warn (non-blocking) on environment-leak patterns in modified files: localhost:PORT, 127.0.0.1, /home/<user>/, 12-digit account IDs, AWS region literals. Skips test/mock/scripts/docs paths. Complements the DoD portability grep by surfacing leaks at edit time.",
+        "id": "post:edit:portability-check"
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PROJECT_DIR}/.claude/hooks/harness-state-stop.sh\""
+          }
+        ],
+        "description": "Touch .githarness/state/<role>.last-stop on turn end. Watchdog uses this plus .last-activity mtime to decide busy vs. idle; 5m-stale + last-activity ahead of last-stop triggers fallback wake, 10m triggers Escape, 15m triggers respawn. Fail-open.",
+        "id": "stop:state-stop"
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/hooks/check-console-log.js\""
+          }
+        ],
+        "description": "Warn (non-blocking) when modified JS/TS files still contain console.log statements outside test/config/scripts directories. Adapted from everything-claude-code under MIT license.",
+        "id": "stop:check-console-log"
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PROJECT_DIR}/.claude/hooks/stop-pickup-next.sh\""
+          }
+        ],
+        "description": "When a long-lived role session tries to exit, auto-pick up the next issue/PR via scripts/session-next-issue.sh and block /exit with a pickup prompt. No-op when HARNESS_SESSION_ROLE is unset.",
+        "id": "stop:pickup-next"
+      }
+    ]
+  }
+}

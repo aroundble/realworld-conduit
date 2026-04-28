@@ -1,0 +1,22 @@
+{
+  "_comment": "MCP servers to wire up when this stack is selected. githarness init merges this into the project's .mcp.json. The project then consumes these servers at session start.",
+  "_stack": "aws-cdk",
+  "_why": "awslabs.aws-iac-mcp-server gives the session live access to current CDK / CloudFormation documentation, samples, and best-practices — which go stale fast and cannot be frozen into a skill file. Pairing the stack skills with this MCP means the session reads the principle (skill) and queries the latest API (MCP) together.",
+  "mcpServers": {
+    "awslabs.aws-iac-mcp-server": {
+      "command": "uvx",
+      "args": ["awslabs.aws-iac-mcp-server@latest"],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      },
+      "disabled": false,
+      "autoApprove": [
+        "read_iac_documentation_page",
+        "search_cdk_documentation",
+        "search_cdk_samples_and_constructs",
+        "cdk_best_practices",
+        "search_cloudformation_documentation"
+      ]
+    }
+  }
+}

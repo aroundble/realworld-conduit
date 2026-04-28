@@ -1,0 +1,13 @@
+{
+  "_comment": "MCP servers to wire up when this stack is selected.",
+  "_stack": "nextjs",
+  "_why": "next-devtools-mcp gives the session live access to Next.js runtime diagnostics — current route tree, server component vs client component boundaries, hydration mismatches — that a frozen skill file cannot capture.",
+  "mcpServers": {
+    "next-devtools": {
+      "command": "npx",
+      "args": ["-y", "next-devtools-mcp@latest"],
+      "disabled": false,
+      "autoApprove": []
+    }
+  }
+}

@@ -1,0 +1,37 @@
+name: E2E
+
+# Project-agnostic stub shipped by githarness.
+#
+# Runs the full E2E suite on PR + push to latest. Projects must wire
+# the actual run command — this stub only verifies the layout.
+
+on:
+  pull_request:
+    branches: [latest, main]
+  workflow_dispatch:
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    # Increase timeout as needed for your suite.
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      # Replace with project compose-up + E2E entry point.
+      # Standard location: tests/e2e/run-e2e.sh
+      - name: e2e (replace me)
+        run: |
+          echo "githarness: replace this step with:"
+          echo "  E2E_ENV=ci ./tests/e2e/run-e2e.sh --skip-compose"
+          echo "or whatever your project's entry script is."
+
+      - name: upload report artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-report
+          path: |
+            tests/e2e/test-results/
+          if-no-files-found: warn
+          retention-days: 14

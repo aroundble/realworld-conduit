@@ -1,0 +1,25 @@
+{
+  "githarness_version": "0.2.37",
+  "written_at_utc": "2026-04-28T03:42:54.597Z",
+  "catalog_ref": "docs/14-bp-catalog.md",
+  "included_bps": [
+    "two-hard-donts",
+    "autonomous-action-boundary",
+    "roles-planner-generator-evaluator",
+    "coordination-claim-prefix",
+    "failure-triage",
+    "context-lifetime",
+    "branch-convention",
+    "commit-convention",
+    "portability",
+    "iac-cdk-asset-hash",
+    "deployment-pipeline",
+    "feature-flag-flip",
+    "e2e-ui-ssr-proxy",
+    "e2e-report-layout",
+    "language-timezone-autodetect",
+    "frozen-modules",
+    "observer-discipline",
+    "session-watchdog"
+  ]
+}

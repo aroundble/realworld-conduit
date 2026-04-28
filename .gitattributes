@@ -1,0 +1,17 @@
+* text=auto eol=lf
+
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.pdf  binary
+*.zip  binary
+*.tar.gz binary
+
+# Mark generated files so git diff skips them by default.
+package-lock.json -diff
+yarn.lock -diff
+poetry.lock -diff
+go.sum -diff
+Cargo.lock -diff

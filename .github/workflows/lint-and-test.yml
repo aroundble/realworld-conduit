@@ -1,0 +1,42 @@
+name: Lint and Test
+
+# Project-agnostic stub shipped by githarness.
+#
+# This does NOT run anything by default — projects MUST replace the
+# placeholder steps with their stack's actual lint and test commands.
+# The stub exists to guarantee that every project has a workflow file
+# with the right name so CI is discoverable.
+
+on:
+  pull_request:
+    branches: [latest, main]
+  push:
+    branches: [latest]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Replace with your stack's lint command. Examples:
+      #   - Node:    `npm run lint`
+      #   - Python:  `ruff check .`
+      #   - Go:      `go vet ./...` and `gofmt -l .`
+      #   - Rust:    `cargo clippy -- -D warnings`
+      - name: lint (replace me)
+        run: |
+          echo "githarness: replace this step with your lint command"
+          echo "see .github/workflows/lint-and-test.yml"
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Replace with your test command. The test scope here is unit +
+      # fast integration — full E2E belongs in e2e.yml.
+      - name: test (replace me)
+        run: |
+          echo "githarness: replace this step with your unit-test command"
+          echo "see .github/workflows/lint-and-test.yml"

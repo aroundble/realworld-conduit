@@ -1,0 +1,21 @@
+
+# githarness
+.githarness/ingested/**
+!.githarness/ingested/*/INGEST_REPORT.md
+!.githarness/ingested/*/.INGEST_SHA
+.githarness/watchdog.pid
+.githarness/state.json
+.githarness/state/
+.githarness/audit/
+.githarness-backup/
+
+# Node
+node_modules/
+
+# Python
+__pycache__/
+*.pyc
+
+# Local env
+.env
+.env.local
