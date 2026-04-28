@@ -12,6 +12,17 @@
 # Node
 node_modules/
 
+# Next.js
+.next/
+next-env.d.ts
+
+# TS build outputs
+dist/
+*.tsbuildinfo
+
+# pnpm store
+.pnpm-store/
+
 # Python
 __pycache__/
 *.pyc

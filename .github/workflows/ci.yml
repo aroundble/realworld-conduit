@@ -1,0 +1,105 @@
+name: CI
+
+# Single pipeline: lint + typecheck + build both apps + compose up + smoke
+# both URLs. Target is < 10 min on ubuntu-latest.
+#
+# Security note: this workflow accepts no user-controlled input into run:
+# commands. github.ref is used only as a concurrency key. No PR title,
+# body, commit message, or head_ref is interpolated into shell.
+
+on:
+  pull_request:
+    branches: [latest, main]
+  push:
+    branches: [latest]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PNPM_VERSION: "10.33.2"
+  NODE_VERSION: "22"
+
+jobs:
+  install:
+    name: install + lint + typecheck + build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: enable corepack + pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@"${PNPM_VERSION}" --activate
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: install
+        run: pnpm install --frozen-lockfile=false
+
+      - name: lint
+        run: pnpm run lint
+
+      - name: typecheck
+        run: pnpm run typecheck
+
+      - name: build web
+        run: pnpm --filter @conduit/web build
+
+      - name: build api
+        run: pnpm --filter @conduit/api build
+
+  smoke:
+    name: compose up + smoke both services
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: install
+    # Compose auto-discovers .env next to the compose file, not at the repo
+    # root, so every docker-compose invocation in this job passes
+    # --env-file .env explicitly — matching scripts/dev-bootstrap.sh output.
+    env:
+      COMPOSE: docker compose -f infra/docker-compose.yml --env-file .env
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: bootstrap .env
+        run: bash scripts/dev-bootstrap.sh
+
+      - name: compose up
+        run: $COMPOSE up -d --build
+
+      - name: wait for healthy (postgres + api + web)
+        run: |
+          set -e
+          for svc in postgres api web; do
+            echo "::group::waiting on $svc"
+            state=starting
+            for i in $(seq 1 60); do
+              state=$(docker inspect --format '{{.State.Health.Status}}' "conduit-${svc}-1" 2>/dev/null || echo starting)
+              echo "[${svc}] ${state} (attempt ${i}/60)"
+              if [ "$state" = "healthy" ]; then break; fi
+              sleep 2
+            done
+            if [ "$state" != "healthy" ]; then
+              echo "::error::${svc} never became healthy"
+              $COMPOSE logs "$svc" | tail -200
+              exit 1
+            fi
+            echo "::endgroup::"
+          done
+
+      - name: smoke
+        run: bash scripts/smoke.sh
+
+      - name: compose logs on failure
+        if: failure()
+        run: $COMPOSE logs --no-color --tail=200
+
+      - name: compose down
+        if: always()
+        run: $COMPOSE down -v
