@@ -11,4 +11,5 @@ export const config = {
   port: Number.parseInt(required("API_PORT", "3001"), 10),
   host: required("API_HOST", "0.0.0.0"),
   logLevel: process.env.LOG_LEVEL ?? "info",
+  webUrl: required("WEB_URL", "http://localhost:3000"),
 } as const;
