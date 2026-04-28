@@ -92,6 +92,13 @@ CONTEXT_CONTINUE = re.compile(r'^This session is being continued from a previous
 ROLE_BADGE = re.compile(r'^\[\s*[a-z]+\s*@?\s*[a-z]+-[a-z0-9]{4,8}')
 # Cross-role comment variants written in prose.
 OBSERVER_NOTE = re.compile(r'^Observer note from [a-z]+-[a-z0-9]+')
+# Cross-role routing — "[from evaluator pane] ..." / "[evaluator → planner] ..."
+# These appear when one role is forwarding information to another role's pane.
+CROSS_ROUTE = re.compile(r'^\[(from \w+ pane\]|[a-z]+ → [a-z]+[,\]])')
+# Observer probe messages inserted while diagnosing a pane.
+OBSERVER_PROBE = re.compile(r'^\[observer probe ')
+# Claude Code UI interrupt marker (user hit Ctrl-C / escape).
+USER_INTERRUPT = re.compile(r'^\[Request interrupted by user\]')
 
 # Load seen-record index. Format per line: <session_id>:<uuid>
 seen = set()
@@ -137,6 +144,12 @@ def classify(text):
         return 'context_continuation'
     if OBSERVER_NOTE.match(text):
         return 'cross_role'
+    if CROSS_ROUTE.match(text):
+        return 'cross_role'
+    if OBSERVER_PROBE.match(text):
+        return 'observer_probe'
+    if USER_INTERRUPT.match(text):
+        return 'user_interrupt'
     if ROLE_BADGE.match(text):
         return 'cross_role'
     return 'human_vibe'
@@ -171,7 +184,8 @@ for sf in session_files:
         text = extract_text(content)
         cat = classify(text)
         if cat in ('wake_stop', 'wake_t2', 'harness_update', 'wake_simple',
-                   'pane_restart_bootstrap', 'init_bootstrap', 'context_continuation'):
+                   'pane_restart_bootstrap', 'init_bootstrap', 'context_continuation',
+                   'observer_probe', 'user_interrupt'):
             last_wake_text = text.splitlines()[0] if text else ''
         if cat != 'human_vibe':
             # Mark all non-human records as seen so we don't re-scan.

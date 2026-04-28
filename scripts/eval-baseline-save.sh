@@ -41,14 +41,31 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 
 extract_playwright() {
   local f
-  f=$(find tests/e2e/test-results -type f -name 'summary.json' -printf '%T@ %p\n' 2>/dev/null | sort -nr | head -1 | awk '{print $2}')
-  [[ -z "$f" ]] && f=$(find tests/e2e/test-results -type f -name 'results.json' -printf '%T@ %p\n' 2>/dev/null | sort -nr | head -1 | awk '{print $2}')
+  # Prefer results.json (JSON reporter) — has real spec-level
+  # failure granularity. Fall back to summary.json (flat convention).
+  f=$(find tests/e2e/test-results -type f -name 'results.json' -printf '%T@ %p\n' 2>/dev/null | sort -nr | head -1 | awk '{print $2}')
+  [[ -z "$f" ]] && f=$(find tests/e2e/test-results -type f -name 'summary.json' -printf '%T@ %p\n' 2>/dev/null | sort -nr | head -1 | awk '{print $2}')
   [[ -z "$f" || ! -f "$f" ]] && { echo '[]'; return; }
-  jq -c '[
-    .suites? // [] | recurse(.suites? // empty) | .specs? // [] | .[]
-    | select(.tests[]? | .results[]? | .status == "failed" or .status == "unexpected")
-    | "\(.file // "?")::\(.title // "?")"
-  ] | unique' "$f" 2>/dev/null || echo '[]'
+  # Branch on schema — see eval-merge-gate.sh extract_playwright_fails
+  # for schema details.
+  if jq -e '.stats.unexpected != null' "$f" >/dev/null 2>&1; then
+    jq -c '[
+      ..
+      | objects
+      | select(.specs?)
+      | .specs[]
+      | select(
+          (.tests[]? | .status == "unexpected" or .status == "flaky")
+          or
+          (.tests[]? | .results[]? | .status == "failed" or .status == "timedOut" or .status == "interrupted")
+        )
+      | "\(.file // "?")::\(.title // "?")"
+    ] | unique' "$f" 2>/dev/null || echo '[]'
+  elif jq -e '.failed != null and .suites != null' "$f" >/dev/null 2>&1; then
+    jq -c '[.suites[] | select(.failed > 0) | "summary::\(.name)"] | unique' "$f" 2>/dev/null || echo '[]'
+  else
+    echo '[]'
+  fi
 }
 
 extract_newman() {
@@ -73,7 +90,7 @@ extract_uat() {
   jq -c '[
     .personas? // [] | .[]
     | select(.status == "failed")
-    | "uat::\(.name // "?")"
+    | "uat::\(.persona // .name // "?")"
   ] | unique' "$f" 2>/dev/null || echo '[]'
 }
 

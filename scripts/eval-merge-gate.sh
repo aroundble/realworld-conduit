@@ -181,19 +181,71 @@ baseline_age() {
   echo $(( $(date +%s) - mt ))
 }
 
-# Extract the set of failed-test identifiers from a Playwright summary.
-# We use `file::title` as the canonical identifier so comparisons
-# across baseline/PR runs remain stable even when line numbers shift.
+# Extract the set of failed-test identifiers from a Playwright
+# JSON-reporter output. Real schema (as of Playwright 1.4x):
+#
+#   {
+#     "stats": {"expected": N, "unexpected": N, "skipped": N, ...},
+#     "suites": [
+#       {
+#         "title": "...", "file": "...",
+#         "suites": [ ... recursive ... ],        # nested describe blocks
+#         "specs": [
+#           {
+#             "file": "...", "title": "...",
+#             "tests": [
+#               {
+#                 "status": "expected" | "unexpected" | "flaky",
+#                 "results": [{"status": "passed" | "failed" | ...}]
+#               }
+#             ]
+#           }
+#         ]
+#       }
+#     ]
+#   }
+#
+# A spec is FAILED when any test.status == "unexpected" OR when any
+# result.status == "failed". Suites nest recursively; we descend via
+# `recurse(.suites[]?)` to reach every `.specs[]`.
+#
+# Identifier: `file::title` is stable across reruns even when line
+# numbers shift.
+#
+# ALSO supports the simpler `summary.json` convention used in
+# vibe-studio: a flat record with `{total, passed, failed, suites:
+# [{name, passed, failed}]}`. In that case we emit one failure id
+# per failed suite (`summary::<name>`) since we have no spec-level
+# granularity.
 extract_playwright_fails() {
   local f="$1"
   [[ -f "$f" ]] || return 0
-  # Playwright's JSON reporter: .suites[].suites[].specs[].tests[] each
-  # has .title and .results[].status
-  jq -r '
-    .suites? // [] | recurse(.suites? // empty) | .specs? // [] | .[]
-    | select(.tests[]? | .results[]? | .status == "failed" or .status == "unexpected" )
-    | "\(.file // "?")::\(.title // "?")"
-  ' "$f" 2>/dev/null | sort -u
+  # Detect schema: JSON-reporter has `.stats.unexpected`; summary
+  # has `.failed` at top level.
+  if jq -e '.stats.unexpected != null' "$f" >/dev/null 2>&1; then
+    # JSON-reporter (results.json). Playwright nests suites up to
+    # ~7 levels deep. Use `.. | objects | select(.specs?)` to walk
+    # every object tree at any depth and filter to those that
+    # actually carry spec arrays. Inside each spec, a failure =
+    # any test.status unexpected/flaky OR any result.status is
+    # failed/timedOut/interrupted.
+    jq -r '
+      [..
+       | objects
+       | select(.specs?)
+       | .specs[]
+       | select(
+           (.tests[]? | .status == "unexpected" or .status == "flaky")
+           or
+           (.tests[]? | .results[]? | .status == "failed" or .status == "timedOut" or .status == "interrupted")
+         )
+       | "\(.file // "?")::\(.title // "?")"]
+      | unique[]
+    ' "$f" 2>/dev/null
+  elif jq -e '.failed != null and .suites != null' "$f" >/dev/null 2>&1; then
+    # summary.json (vibe-studio convention)
+    jq -r '.suites[] | select(.failed > 0) | "summary::\(.name)"' "$f" 2>/dev/null | sort -u
+  fi
 }
 
 extract_newman_fails() {
@@ -217,10 +269,18 @@ except Exception:
 extract_uat_fails() {
   local f="$1"
   [[ -f "$f" ]] || return 0
+  # uat-run.summary.json real schema:
+  #   {
+  #     "total": N, "passed": N, "failed": N,
+  #     "personas": [
+  #       {"persona": "<name>", "journey": "...", "status": "passed" | "failed",
+  #        "steps": [...]}
+  #     ]
+  #   }
   jq -r '
     .personas? // [] | .[]
     | select(.status == "failed")
-    | "uat::\(.name // "?")"
+    | "uat::\(.persona // .name // "?")"
   ' "$f" 2>/dev/null | sort -u
 }
 
