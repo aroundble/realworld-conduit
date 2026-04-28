@@ -72,6 +72,8 @@ full_triggers:
   # Tooling that governs how tests themselves run.
   - "playwright.config.ts"
   - "apps/*/playwright.config.ts"
+  - "tests/e2e/playwright.config.ts"
+  - "tests/e2e/specs/**"
   - "vitest.config.*"
   - "apps/*/vitest.config.*"
   - "tests/affected-map.yaml"

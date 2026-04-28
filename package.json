@@ -16,9 +16,11 @@
     "compose:up": "docker compose -f infra/docker-compose.yml up -d --build",
     "compose:down": "docker compose -f infra/docker-compose.yml down -v",
     "smoke": "bash scripts/smoke.sh",
-    "test:conformance:smoke": "bash scripts/run-newman-smoke.sh"
+    "test:conformance:smoke": "bash scripts/run-newman-smoke.sh",
+    "test:e2e:smoke": "playwright test --config tests/e2e/playwright.config.ts"
   },
   "devDependencies": {
+    "@playwright/test": "1.59.1",
     "newman": "6.2.2",
     "typescript": "5.9.3"
   }

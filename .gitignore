@@ -36,3 +36,14 @@ __pycache__/
 # presence check.
 tests/api/results/**
 !tests/api/results/.gitkeep
+
+# Playwright smoke artefacts — summary.json and screenshots are produced
+# fresh on every run; the .gitkeep files in these dirs are tracked so
+# the directories exist for the merge-gate's presence check.
+tests/e2e/test-results/**
+!tests/e2e/test-results/.gitkeep
+tests/e2e/screenshots/**
+!tests/e2e/screenshots/.gitkeep
+!tests/e2e/screenshots/*/
+!tests/e2e/screenshots/*/.gitkeep
+playwright-report/
