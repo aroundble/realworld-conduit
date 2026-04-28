@@ -54,13 +54,16 @@ services:
     ports:
       - "${API_HOST_PORT:-3001}:3001"
     healthcheck:
+      # 127.0.0.1 (not "localhost") so busybox wget doesn't try ::1 first
+      # on hosts that prefer IPv6 in /etc/hosts — the Node server binds
+      # 0.0.0.0 (IPv4 only) so an IPv6-first resolver would fail.
       test:
         - CMD-SHELL
-        - 'wget -qO- "http://localhost:${API_PORT:-3001}/healthz" | grep -q ''"ok":true'''
-      interval: 10s
+        - 'wget -qO- "http://127.0.0.1:${API_PORT:-3001}/healthz" | grep -q ''"ok":true'''
+      interval: 5s
       timeout: 5s
-      retries: 6
-      start_period: 10s
+      retries: 12
+      start_period: 15s
 
   web:
     build:
@@ -77,10 +80,10 @@ services:
     ports:
       - "${WEB_HOST_PORT:-3000}:3000"
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:${WEB_PORT:-3000}/ >/dev/null 2>&1 || exit 1"]
-      interval: 10s
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:${WEB_PORT:-3000}/ >/dev/null 2>&1 || exit 1"]
+      interval: 5s
       timeout: 5s
-      retries: 6
+      retries: 12
       start_period: 15s
 
 volumes:
