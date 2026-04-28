@@ -423,10 +423,47 @@ See `CLAUDE.md` for the full rule. Operationally:
    is your job. Edit IaC or config, push to the same PR branch,
    re-deploy dev, re-run E2E, merge on pass. Document the infra
    fix in the evidence comment.
-4. **Genuinely ambiguous after one honest attempt at both** →
-   You cannot decide alone. Swap back to `claim:planner` with a
+4. **Coordination / dependency / harness-tooling blocker** →
+   Swap to `claim:planner` **immediately** with a specific
+   question. Examples of this case:
+   - "This PR's feature is verified, but gate 6 (Newman)
+     requires `tests/api/collections/<name>.postman_collection.json`
+     which doesn't exist yet — file an infra PR or skip API
+     gate for this merge?"
+   - "PR body cites `Depends on #XXX` but #XXX is still open —
+     should I merge this PR first or wait for #XXX?"
+   - "The gate script itself has a bug (e.g. gate 3 doesn't
+     parse Playwright's summary.json schema); is this fixed in
+     a newer harness release?"
+   You do NOT park on `blocked` label. See §"`blocked` label
+   is forbidden" below.
+5. **Genuinely ambiguous after one honest attempt at both
+   options (2) and (3)** → swap back to `claim:planner` with a
    summary of both attempts and the specific ambiguity. Planner
    decides routing. You do not wait for an operator.
+
+## `blocked` label is forbidden
+
+**Do not apply the `blocked` label to any PR or issue, ever.**
+`blocked` is invisible to planner's Branch 5 audits (which only
+scan `claim:*`), so a `blocked`-labeled item enters silent
+death. The 2026-04-28 vibe-studio deadlock was exactly this —
+5 PRs parked on `blocked` for > 1h, no role picked them up
+because no role was scanning for `blocked`.
+
+**The correct routing for every "I can't merge this now" case**:
+
+| Situation | Correct action | NOT this |
+|---|---|---|
+| External service outage (CI billing, Docker Hub rate limit, registry 503) | `blocked-external:<service>` label + work the local fallback per §External-service fallback | `blocked` |
+| Coordination / dependency / harness-tooling issue | Swap to `claim:planner` with specific question per Failure triage #4 | `blocked` |
+| Feature stale / no longer needed | Close the PR with a summary comment | `blocked` |
+| Same class of problem you've hit 3× (iteration cap) | Close PR with "rework cap reached", swap issue to `claim:planner` | `blocked` |
+
+Planner's Audit I (v0.2.41+) scans for any `blocked` label
+you leave behind and reroutes it, but the purpose of Audit I
+is to catch legacy violations. **The rule going forward: you
+don't create the legacy.**
 
 ## Iteration caps
 

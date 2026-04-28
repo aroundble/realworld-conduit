@@ -437,12 +437,20 @@ away, or just not watching. Every role operates on this contract:
   throughout.
 - **`claim:human` is a non-blocking skip-marker**, not a pause
   button. An issue with `claim:human` is excluded from every
-  agent's pickup pool (treated exactly like `blocked`), but the
-  agents **must** continue picking up other work. `claim:human`
-  means "this specific issue requires the operator"; it never
-  means "the whole loop stops". If the pickup pool happens to be
-  empty *except* for `claim:human` issues, end the turn idle —
-  but do not wait on the operator for everything else.
+  agent's pickup pool, but the agents **must** continue picking
+  up other work. `claim:human` means "this specific issue
+  requires the operator"; it never means "the whole loop stops".
+  If the pickup pool happens to be empty *except* for
+  `claim:human` issues, end the turn idle — but do not wait on
+  the operator for everything else.
+- **`blocked` label is forbidden from v0.2.41+.** It was
+  invisible to planner audits and produced silent deadlocks
+  (2026-04-28 vibe-studio 5-PR pileup). Neither generator nor
+  evaluator may apply `blocked`. Route coordination / dependency
+  / harness-tool concerns to `claim:planner` with a specific
+  question. Use `blocked-external:<service>` only for actual
+  outages. Planner's Audit I reroutes any legacy `blocked`
+  label it finds.
 - **Keep going until the product is production-ready, then past
   that into refinement.** Your goal is not to "finish onboarding"
   or to survive a fixed duration — it is to deliver a working
@@ -627,10 +635,20 @@ line at the top), or a label (e.g. `priority/1`, `priority/2`)
 chosen by the project. The harness is indifferent to the
 representation.
 
-The **only two labels** that halt a role are:
+The **only three labels** that halt a role are:
 
-- `claim:human` — operator reserved; no agent touches.
-- `blocked` — excluded from pickup until the blocker lifts.
+- `claim:human` — operator-reserved (billing, license, policy
+  calls requiring a real human). No agent touches. v0.2.36 made
+  this strictly narrow — external outages use
+  `blocked-external:<service>` instead.
+- `blocked-external:<service>` — external service outage; the
+  planner Branch 5 Audit watches and escalates after > 4h.
+- `blocked` — **deprecated and forbidden from v0.2.41+**.
+  Neither generator nor evaluator may apply this label. Planner's
+  Audit I continuously reroutes any `blocked` label it finds
+  (legacy-violation catch). Coordination / dependency / harness-
+  tool blockers go to `claim:planner` for a decision, not
+  `blocked`.
 
 Every other label — including the priority label the project
 chose — is **ordering input**, never a stop signal.

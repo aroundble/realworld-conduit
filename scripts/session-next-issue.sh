@@ -170,6 +170,19 @@ planner_claimed_issues=$(echo "$snapshot" | jq '
    | select(.labels.nodes | map(.name) | index("claim:planner"))] | length
 ')
 
+# ---- counter (blocked_items, planner-only): legacy blocked-label catch ----
+# Counts open issues + PRs carrying the `blocked` label (but NOT
+# `blocked-external:*` — those are legitimate outage markers).
+# v0.2.41 `blocked` is deprecated; planner Audit I reroutes.
+# Planner wakes on this counter to clear legacy violations.
+blocked_items=$(echo "$snapshot" | jq '
+  ([.repository.openIssues.nodes[]
+    | select(.labels.nodes | map(.name) | any(. == "blocked"))] | length)
+  +
+  ([.repository.openPRs.nodes[]
+    | select(.labels.nodes | map(.name) | any(. == "blocked"))] | length)
+')
+
 # ---- planner-only counters (6-8): post_merge_prs, new_e2e_reports, operator_comments ----
 post_merge_prs=0
 new_e2e_reports=0
@@ -237,6 +250,7 @@ counts=$(jq -nc \
   --argjson cn "$contract_proposals" \
   --argjson oc "$operator_comments" \
   --argjson pc "$planner_claimed_issues" \
+  --argjson bl "$blocked_items" \
   '{
     claimed_issues: $ci,
     claimed_prs: $cp,
@@ -249,13 +263,20 @@ counts=$(jq -nc \
     new_e2e_reports: $ne,
     contract_proposals: $cn,
     operator_comments: $oc,
-    planner_claimed_issues: $pc
+    planner_claimed_issues: $pc,
+    blocked_items: $bl
   }')
+
+# blocked_items wakes planner only (Audit I).
+planner_signal=0
+if [[ "$ROLE" == "planner" && "$blocked_items" -gt 0 ]]; then
+  planner_signal=$blocked_items
+fi
 
 total=$(( claimed_issues + claimed_prs + rework + unclaimed_issues
         + review_queue + post_merge_prs + new_e2e_reports
         + contract_proposals + operator_comments
-        + planner_claimed_issues ))
+        + planner_claimed_issues + planner_signal ))
 
 if [[ "$total" -gt 0 ]]; then
   emit_work "signals_present" "$counts"

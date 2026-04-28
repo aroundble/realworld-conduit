@@ -656,6 +656,75 @@ Audit G is what prevents the "planner reads `post_merge_prs=17`
 then idles" deadlock observed on 2026-04-27 — the signal now
 *maps to a label change you make*, not a report you acknowledge.
 
+**Audit I — `blocked` label is never terminal.**
+
+`blocked` label on a PR (or issue) is invisible to Audit A-G,
+which only scan `claim:*`. A PR parked on `blocked` with no
+`claim:*` label is **in a silent death state** — the evaluator
+set it there but no role scans for it.
+
+Observed 2026-04-28: vibe-studio had 5 PRs on `blocked` for
+>1h each, none progressing. Root cause: evaluator used
+`blocked` label when it should have swapped to `claim:planner`
+per `prompts/evaluator.md` §Failure triage #4 ("You cannot
+decide alone. Swap back to `claim:planner`").
+
+Every wake, for each PR and issue carrying `blocked`:
+
+```bash
+gh pr list --repo "$HARNESS_REPO" --state open --label blocked \
+  --json number,labels,updatedAt,body,comments
+```
+
+For each result:
+
+1. **Read the parking-reason comment** (latest `[evaluator @ ...]` comment
+   or the PR body). Extract what specifically blocked it.
+2. **Classify the reason and act**:
+   - *"gate-script bug in harness"* → fixed in a later v0.2.xx
+     release. Check `package.json` version in the project clone
+     vs. the release the parking comment cited. If the project
+     is on a newer release: remove `blocked`, add
+     `claim:evaluator`, comment
+     `[planner @ <id>] Audit I — parking-reason (gate bug) was
+      fixed in v0.2.xx; re-evaluating against current gate.`
+   - *"missing infrastructure — tests/e2e/screenshots, tests/uat"*
+     → list the infra PR numbers the parking comment cites.
+     Check their state:
+     * If dependency PRs are `merged`: unblock this PR (remove
+       `blocked`, add `claim:evaluator`).
+     * If dependency PRs are `open`: **do not leave this PR on
+       `blocked`**. Instead: update the PR body to include a
+       `Depends on #<N>` line referencing the open dep, keep
+       `blocked` label, BUT also comment with the dep chain and
+       a target-resolution ETA. The `blocked` label is permitted
+       ONLY when the dependency is simultaneously being driven.
+   - *"feature deferred / no longer needed"* → close the PR
+     with a summary comment.
+   - *"external service outage"* → wrong label. The correct
+     label is `blocked-external:<service>` (v0.2.36). Fix the
+     label.
+3. **Default rule when parking-reason is unclear**: remove
+   `blocked`, add `claim:evaluator`, comment
+   `[planner @ <id>] Audit I — parking-reason unclear after 1h.
+    Re-evaluate against current gate; if the block is genuine,
+    swap to claim:planner with specifics instead of blocked.`
+
+**The routing rule for future.** You, planner, own
+dependency-ordering decisions. When evaluator finds a
+coordination problem, they swap to `claim:planner` — NOT
+`blocked`. Update the PR body with a `Depends on #<N>` chain
+you've decided. Audit I is the enforcement of this policy.
+
+**Priority adjustment is your tool.** If a `blocked` PR's
+dependency needs to be accelerated, swap `priority/4` → `priority/1`
+on the dependency PR and comment on both PRs explaining the
+chain. Generator picks up higher-priority work first; this
+shifts the order without any "blocked" label dance.
+
+Audit I eliminates the 2026-04-28 vibe-studio 5-PR parking
+deadlock class permanently.
+
 **Audit H — Scope-map bootstrap (evaluator throughput).**
 
 The evaluator's merge gate runs scope-aware tests when
