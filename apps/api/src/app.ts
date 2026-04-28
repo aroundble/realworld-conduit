@@ -1,29 +1,39 @@
-import { Hono } from "hono";
-import { cors } from "hono/cors";
-import { logger } from "hono/logger";
-import { requestId } from "hono/request-id";
+import { OpenAPIHono } from "@hono/zod-openapi";
+import { corsMiddleware } from "./middleware/cors.js";
+import { errorHandler } from "./middleware/error.js";
+import { requestLogger } from "./middleware/logger.js";
+import { requestId, type RequestIdVars } from "./middleware/request-id.js";
+import { registerHealthzRoute } from "./routes/healthz.js";
+import { registerInternalThrowRoute } from "./routes/internal-throw.js";
 
-export const createApp = (): Hono => {
-  const app = new Hono();
+export type AppEnv = { Variables: RequestIdVars };
 
+export const createApp = (): OpenAPIHono<AppEnv> => {
+  const app = new OpenAPIHono<AppEnv>();
+
+  // request-id runs first so every downstream log line and error response
+  // carries the same id (inbound X-Request-ID is preferred; otherwise a
+  // UUID v4 is minted here and echoed back on the response).
   app.use("*", requestId());
-  app.use("*", logger());
-  app.use(
-    "*",
-    cors({
-      origin: (origin) => origin ?? "*",
-      credentials: true,
-    }),
-  );
+  app.use("*", requestLogger());
+  app.use("*", corsMiddleware());
 
-  app.get("/healthz", (c) => c.json({ ok: true }));
+  registerHealthzRoute(app);
+  registerInternalThrowRoute(app);
+
+  app.doc("/docs/json", {
+    openapi: "3.1.0",
+    info: {
+      title: "RealWorld Conduit API",
+      version: "0.0.0",
+      description:
+        "RealWorld spec-conformant API. Routes are added per feature.",
+    },
+  });
 
   app.notFound((c) => c.json({ errors: { body: ["not found"] } }, 404));
 
-  app.onError((err, c) => {
-    console.error(err);
-    return c.json({ errors: { body: [err.message] } }, 500);
-  });
+  app.onError(errorHandler);
 
   return app;
 };
