@@ -656,6 +656,35 @@ Audit G is what prevents the "planner reads `post_merge_prs=17`
 then idles" deadlock observed on 2026-04-27 — the signal now
 *maps to a label change you make*, not a report you acknowledge.
 
+**Audit H — Scope-map bootstrap (evaluator throughput).**
+
+The evaluator's merge gate runs scope-aware tests when
+`tests/affected-map.yaml` exists; without it the gate falls back
+to FULL on every PR (3-4 min per review vs 30-60 s scoped).
+The stub lives at `tests/affected-map.yaml.template`.
+
+Each wake, check: does `tests/affected-map.yaml.template` exist
+AND `tests/affected-map.yaml` NOT exist? If so, the project has
+the stub but not the real map — evaluator throughput is being
+taxed unnecessarily. Action:
+
+1. Read `tests/affected-map.yaml.template` — it has the schema.
+2. Scan the project's actual source layout
+   (`apps/*`, `packages/*`, `src/*`) and existing test locations.
+3. File **one** `claim:generator` issue titled
+   `infra: author tests/affected-map.yaml scope map` with
+   Given/When/Then AC:
+   - *Given* `tests/affected-map.yaml` does not exist
+   - *When* the generator authors it based on the source layout,
+     runs `bash scripts/eval-affected-scopes.sh --pr <any-open-PR>`
+     against at least one open PR, and the output shows
+     `full=0` with one or more scope names
+   - *Then* commit + push; evaluator's next review is scoped
+4. If the issue is already open, skip (idempotent).
+
+Audit H is what prevents the "scoping shipped but nobody
+authored the map" failure mode.
+
 **Roadmap progression at the end of Branch 5.**
 
 After audits A-H, check the roadmap state against the **north

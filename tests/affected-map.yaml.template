@@ -1,0 +1,63 @@
+# tests/affected-map.yaml — project-owned scope map for the evaluator's
+# scope-aware merge gate (v0.2.39+).
+#
+# Rename this file to tests/affected-map.yaml once the project has
+# enough test infrastructure to benefit from scoping (typically:
+# ≥ 10 Playwright specs + ≥ 3 Newman collections + 1 UAT persona).
+#
+# Schema:
+#
+#   full_triggers:                 # globs that force FULL run on PR diff
+#     - "<glob>"
+#   scopes:
+#     <scope-name>:
+#       files:   ["<source-globs-that-define-this-scope>"]
+#       specs:   ["<playwright-specs-for-this-scope>"]
+#       newman:  ["<newman-collections-for-this-scope>"]
+#       uat:     ["<uat-persona-specs-for-this-scope>"]
+#
+# Rules:
+# - A PR's test run = union of scopes whose `files` glob any changed
+#   source file in the PR.
+# - Any changed file matching a `full_triggers` glob → FULL run.
+# - No scope match and no trigger → FULL run (conservative).
+#
+# See skills/for-evaluator/scoped-test-runs.md for the full contract.
+
+# STARTER TEMPLATE — replace with project-specific globs.
+
+full_triggers:
+  - "packages/shared/**"          # shared library touched by every scope
+  - "packages/db/**"              # schema / migration change
+  - "docker-compose.yml"          # stack topology
+  - "Dockerfile*"
+  - "*.lock"                      # pnpm-lock.yaml / uv.lock / go.sum
+  - "package.json"
+  - ".github/workflows/**"        # CI pipeline
+  - "infra/**"                    # IaC
+
+scopes:
+  # Example: web feature scope. Remove or rename to match project layout.
+  web-feed:
+    files:
+      - "apps/web/app/(feed)/**"
+      - "apps/web/components/Feed*"
+    specs:
+      - "tests/e2e/specs/feed*.spec.ts"
+    newman:
+      - "tests/api/collections/feed.postman_collection.json"
+    uat:
+      - "tests/uat/specs/browse*.uat.ts"
+
+  # Example: API feature scope.
+  api-articles:
+    files:
+      - "apps/api/src/articles/**"
+    specs:
+      - "tests/e2e/specs/article*.spec.ts"
+    newman:
+      - "tests/api/collections/articles.postman_collection.json"
+    uat: []
+
+  # Add scopes as new feature areas are built. A scope with only a
+  # few assets is fine; empty lists are valid.

@@ -416,7 +416,12 @@ wake_or_restart() {
       elapsed=$(( now_epoch - prev_at_epoch ))
       if [[ "$elapsed" -lt "$cooldown_secs" ]]; then
         log "STUCK: $role stuck on '$wake_key' for $prev_count attempts; cooldown $elapsed/${cooldown_secs}s. skipping this cycle."
-        return 1
+        # v0.2.40: return 0 (not 1) — STUCK cooldown is a normal
+        # throttle path, not an error. Previously return 1 leaked
+        # through run_cycle's for-loop and triggered a noisy
+        # "cycle error (continuing)" log on every STUCK skip,
+        # masking real errors. The skip itself is logged above.
+        return 0
       fi
       # Cooldown elapsed — send a refresh wake with explicit pull hint.
       in_cooldown=1
