@@ -679,6 +679,77 @@ EOF
   wake_or_restart "$role" "$msg" "$wake_key"
 }
 
+check_full_regression_wake() {
+  # v0.2.39: 2h cadence full-suite regression wake to evaluator.
+  # The eval-merge-gate is scope-aware (only runs affected-map
+  # scopes per PR) to keep per-PR latency low; this wake compensates
+  # by forcing a full-matrix run every
+  # HARNESS_FULL_REGRESSION_INTERVAL seconds (default 7200 = 2h).
+  # The evaluator takes this wake as "run the entire suite against
+  # `latest` tip + file regression issues".
+  local interval_secs="${HARNESS_FULL_REGRESSION_INTERVAL:-7200}"
+  local marker_file="$HARNESS_STATE_DIR/last-full-regression-wake.epoch"
+  local now_epoch last_epoch elapsed
+  now_epoch=$(date -u +%s)
+  last_epoch=0
+  [[ -f "$marker_file" ]] && last_epoch=$(cat "$marker_file" 2>/dev/null | tr -d '[:space:]' || echo 0)
+  [[ -z "$last_epoch" ]] && last_epoch=0
+  elapsed=$(( now_epoch - last_epoch ))
+  (( elapsed < interval_secs )) && return 0
+
+  if ! has_session evaluator; then
+    return 0
+  fi
+  if is_session_busy evaluator; then
+    log "full-regression wake: evaluator busy — deferring"
+    return 0
+  fi
+  if is_session_awaiting_human_input evaluator; then
+    return 0
+  fi
+
+  log "full-regression wake: emitting to evaluator (elapsed ${elapsed}s ≥ ${interval_secs}s)"
+  local target msg
+  target=$(target_for_role evaluator)
+  msg=$(cat <<'EOF'
+[T2 full-regression wake] 2-hour cadence full-suite regression pass.
+
+  The per-PR merge gate runs scoped tests only (affected by the PR
+  diff). This wake is the safety net: run the entire suite on the
+  current `latest` tip and file any failing spec / scenario as a
+  `regression` + `claim:generator` issue.
+
+  Procedure:
+    1. `git fetch origin && git checkout latest && git pull`
+    2. `docker compose down -v && docker compose up -d --build`
+    3. `./scripts/wait-for-healthy.sh`
+    4. Run the FULL suites (override scoping):
+         GATE_SCOPES="" GATE_FULL=1 ./tests/run-all.sh
+         (or project-specific equivalent — Playwright all projects,
+          Newman all collections, UAT all personas)
+    5. Save the result as the new baseline for the FULL hash:
+         bash scripts/eval-baseline-save.sh --full
+       This updates tests/baseline-cache/FULL.json; any future
+       eval-merge-gate --full run reads this for triage.
+    6. For each NEW regression (not present 2h ago), file a
+       `regression` + `claim:generator` + `priority/1` issue:
+         `gh issue create --title 'regression: <spec-id>' \
+            --body '<reproduction + last-green SHA>' \
+            --label regression,claim:generator,priority/1`
+    7. End the turn. The next merge gate will see the updated
+       baseline and triage correctly.
+
+  This wake is deliberately infrequent (2h). Do not treat it as
+  a reason to pause PR review; the per-PR scoped gate continues
+  independently.
+EOF
+)
+  tmux send-keys -t "$target" "$msg" && sleep 1 && tmux send-keys -t "$target" Enter
+
+  mkdir -p "$(dirname "$marker_file")"
+  echo "$now_epoch" > "$marker_file"
+}
+
 check_refinement_wake() {
   # v0.2.38: budget guard — skip refinement wake if 24h token
   # budget was exceeded this cycle (set by run_cycle).
@@ -833,6 +904,7 @@ run_cycle() {
   # refinement-loop issues. Generator / evaluator stay idle; they
   # wake naturally on the next cycle if planner files new work.
   check_refinement_wake
+  check_full_regression_wake
   # v0.2.38: token-ledger sample — every tick, read the Claude Code
   # session JSONL under ~/.claude/projects/<slugified-worktree>/*.jsonl
   # and append a summary row to $HARNESS_STATE_DIR/token-ledger-<role>.jsonl.

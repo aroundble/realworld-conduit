@@ -278,24 +278,81 @@ The merge gate (`scripts/eval-merge-gate.sh`) does NOT check
 GitHub Actions status — it runs your local evidence. This is
 by design: external outages must not gate merge-to-integration.
 
-## Structural merge gate — run it, do not bypass
+## Structural merge gate — scope-aware + baseline-triaged
 
-Before invoking `gh pr merge`, you MUST run
-`bash scripts/eval-merge-gate.sh --pr <N> --issue <I> --comment-file /tmp/merge-<N>.md`
-and get exit code 0. The gate is non-negotiable. If it fails:
+Before `gh pr merge`, you run `scripts/eval-merge-gate.sh` and
+get exit 0. The gate from v0.2.39 is **scope-aware + baseline-
+triaged** — two changes that matter for how you work:
 
-- Fix the missing evidence (compose-up, re-run E2E / Newman /
-  UAT, re-capture screenshots), then re-run the gate.
-- Or swap the PR back to `claim:generator` with a `## 수정 요청`
-  comment naming every blocker the gate flagged.
+**Scope-aware**. The gate asks `scripts/eval-affected-scopes.sh`
+what this PR touches. If the project has
+`tests/affected-map.yaml`, the script returns the subset of
+Playwright specs + Newman collections + UAT personas that need
+to run. Shared-file touches (lockfile, `packages/shared/**`,
+`docker-compose.yml`) trigger a FULL run. A project without the
+map falls back to FULL. You do not need to override —
+auto-detection is the norm. You can override via
+`--scopes "a b c"` or `--full` when necessary.
 
-Do NOT merge by manual `gh pr merge` without a successful
-gate run logged in the merge comment. The gate was added in
-v0.2.35 specifically because agent self-attestation of the
-rubric was not reliable — the 2026-04-28 hot-deal run merged
-83 PRs against the rubric text without ever composing the
-stack. The gate is the structural check that this cannot
-happen again.
+**Baseline-triaged**. A PR is merge-blocked only if it
+introduces **NEW** failures — i.e. failures that weren't
+already present on `latest`. Every release-cycle's `latest` may
+carry regressions that are not this PR's fault; you do not
+force 16 PRs to wait while someone else's regression is hunted
+down. Procedure:
+
+1. Before running tests on the PR branch, establish a baseline:
+
+   ```bash
+   git fetch origin && git checkout <base-sha>
+   docker compose down -v && docker compose up -d --build
+   ./scripts/wait-for-healthy.sh
+   GATE_SCOPES="<scopes-for-this-PR>" ./tests/run-scoped.sh
+   bash scripts/eval-baseline-save.sh --scope-hash "<hash>"
+   ```
+
+   The scope-hash is `md5sum` of the sorted scope list (full
+   runs use the literal string `FULL`). Baseline TTL is 1h
+   (`HARNESS_GATE_BASELINE_TTL`, default 3600s). Same-scope PRs
+   within the TTL reuse the cache — you do not re-run baseline
+   for every PR. A stale baseline triggers a re-run automatically.
+
+2. Check out the PR branch and run the same scopes.
+
+3. Invoke the gate:
+
+   ```bash
+   bash scripts/eval-merge-gate.sh \
+     --pr <N> --issue <I> --comment-file /tmp/merge-<N>.md
+   ```
+
+   The gate compares baseline fails vs PR fails. Exit 0 means
+   PR-fails ⊆ baseline-fails (no new regressions). Exit 1 with
+   "NEW failure(s) introduced by this PR" means the PR is the
+   cause; swap to `claim:generator` with the listed failures.
+
+**Baseline failures themselves**. If the baseline has failing
+tests, those are **not this PR's problem**, but they are the
+project's problem. Every `[T2 full-regression wake]` (default 2h
+cadence) you file each baseline failure as a `regression` +
+`claim:generator` + `priority/1` issue. Don't re-file on each
+pickup — dedup by scanning existing open `regression`-labeled
+issues first. If a failure already has an open regression
+issue, comment with the latest reproduction; else file.
+
+Why this gate design — v0.2.34 introduced the "stack-must-run"
+enforcement. v0.2.35 made it structural. v0.2.39 stops it from
+becoming a productivity tax: scope-aware evaluation means a
+7-file API change doesn't wait for the Playwright matrix;
+baseline triage means a PR isn't punished for regressions
+it didn't cause. The **two-layer design** (strict per-PR
+subset + loose 2h full) is the compromise between speed and
+rigor that 13h of pilot observation surfaced as necessary.
+
+Hard rule: you still do NOT merge by manual `gh pr merge`
+without gate exit 0. The gate is the structural check that
+"CI passed" doesn't sneak in without a stack running (the
+2026-04-28 hot-deal failure mode).
 
 ## Definition of Done (before merging)
 
@@ -426,24 +483,64 @@ evaluator territory:
    Branch 5 is only the safety net.
 
    After self-claim, the review turn proceeds in this fixed
-   order:
-   1. `git fetch && git checkout <head-branch>` — land on the
-      PR branch in the evaluator worktree.
-   2. `docker compose down -v && docker compose up -d --build`
-      — fresh stack on every review (no stale state).
-   3. `./scripts/wait-for-healthy.sh` — block until every
-      service reports `(healthy)`.
-   4. Run the three test runners that will feed the gate:
-      Playwright (`e2e-testing` / `live-bdd-verification`
-      skills), Newman (`api-test-newman` skill), UAT
-      (`uat-user-acceptance` skill). Capture screenshots per
-      the `visual-evidence` skill.
-   5. Author the merge comment draft at `/tmp/merge-<N>.md`
-      including every section the gate checks.
-   6. `bash scripts/eval-merge-gate.sh --pr <N> --issue <I>
-      --comment-file /tmp/merge-<N>.md`. Exit 0 → merge.
-      Exit 1 → swap to `claim:generator` with the gate's
-      flagged reasons.
+   order (v0.2.39 scope-aware + baseline-triaged):
+
+   1. **Resolve scopes**:
+      ```bash
+      bash scripts/eval-affected-scopes.sh --pr <N> --format json
+      ```
+      Captures the affected scope list. If it returns
+      `"full": 1`, the PR touches shared infrastructure and
+      the run is FULL.
+
+   2. **Ensure baseline freshness**. Compute the scope-hash
+      (md5 of sorted scope list; `FULL` for full runs). Check
+      `tests/baseline-cache/<hash>.json` mtime. If missing or
+      > `HARNESS_GATE_BASELINE_TTL` (1h default):
+      ```bash
+      git fetch origin && git checkout <base-sha>
+      docker compose down -v && docker compose up -d --build
+      ./scripts/wait-for-healthy.sh
+      GATE_SCOPES="<scopes>" ./tests/run-scoped.sh
+      bash scripts/eval-baseline-save.sh --scope-hash <hash>
+      ```
+      If baseline is fresh, skip to step 3. (Same-hash PRs in
+      quick succession share one baseline.)
+
+   3. **Check out the PR branch + run scoped tests**:
+      ```bash
+      git fetch origin && git checkout <head-branch>
+      docker compose down -v && docker compose up -d --build
+      ./scripts/wait-for-healthy.sh
+      GATE_SCOPES="<scopes>" ./tests/run-scoped.sh
+      ```
+      Capture screenshots for the issue's scenarios
+      (`visual-evidence` skill). If the PR is FULL, run the
+      full matrix here.
+
+   4. **Author the merge comment** at `/tmp/merge-<N>.md`
+      including the required sections (docker-ps block,
+      test summary, screenshots, scope + baseline summary).
+
+   5. **Invoke the gate**:
+      ```bash
+      bash scripts/eval-merge-gate.sh \
+        --pr <N> --issue <I> \
+        --comment-file /tmp/merge-<N>.md
+      ```
+      Exit 0 = merge. Exit 1 with "NEW failure(s) introduced
+      by this PR" = swap to `claim:generator` with those
+      specific failures cited. Exit 1 with "baseline missing
+      / stale" = go back to step 2.
+
+   Skills that implement this flow:
+   [`live-bdd-verification`](../skills/for-evaluator/live-bdd-verification.md),
+   [`browser-qa`](../skills/for-evaluator/browser-qa.md) (ECC
+   absorbed), [`e2e-testing`](../skills/for-all-roles/e2e-testing.md)
+   (ECC absorbed), [`api-test-newman`](../skills/for-evaluator/api-test-newman.md),
+   [`uat-user-acceptance`](../skills/for-evaluator/uat-user-acceptance.md),
+   [`click-path-audit`](../skills/for-evaluator/click-path-audit.md)
+   (ECC absorbed), [`visual-evidence`](../skills/for-evaluator/visual-evidence.md).
 4. **In-flight reviews** — PRs where `claim:evaluator` is already
    set and dev deploy / E2E is still in progress from a prior turn.
 5. **Deploy is your work, not a separate request** — remember
