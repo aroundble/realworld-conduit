@@ -1,0 +1,235 @@
+# Project-owned scope map for the evaluator's scope-aware merge gate.
+#
+# Schema + semantics: tests/affected-map.yaml.template (copied from the
+# harness) and scripts/eval-affected-scopes.sh. Rules in short:
+#   - any changed file matching full_triggers → FULL run
+#   - otherwise the selected scope set is the union of scopes whose
+#     `files` glob matches any changed source file
+#   - no scope match and no trigger → FULL run (conservative)
+#
+# File globs track the planned module layout from ADR 001 and the
+# roadmap in issues #4–#21. Scopes may currently point at paths that
+# don't exist yet (the feature issue hasn't landed) — the map's job
+# is to route *future* diffs, and empty spec/newman/uat arrays are
+# valid until the corresponding test suites (#22, #23) author them.
+#
+# Shared layout shell (`apps/web/src/app/layout.tsx`, navbar / footer
+# components, globals.css, next.config.ts, tailwind config) is NOT a
+# scope: any change there can visually affect every page, so it
+# belongs under full_triggers rather than a web-* scope.
+
+full_triggers:
+  # Stack topology / dependency resolution — rebuilds affect everything.
+  - "docker-compose.yml"
+  - "infra/docker-compose.yml"
+  - "infra/**"
+  - "Dockerfile*"
+  - "apps/*/Dockerfile*"
+  - "apps/*/docker-entrypoint.sh"
+  - "package.json"
+  - "apps/*/package.json"
+  - "packages/*/package.json"
+  - "pnpm-lock.yaml"
+  - "pnpm-workspace.yaml"
+  - ".npmrc"
+
+  # CI / quality pipeline.
+  - ".github/workflows/**"
+
+  # DB schema + migrations — any data-layer change can break every
+  # backend scope at once.
+  - "apps/api/prisma/**"
+
+  # API-wide cross-cutting code: middleware, logger, error handler,
+  # OpenAPI assembly, app factory, request-id — touching any of these
+  # can regress auth, articles, comments, profiles, and tags together.
+  - "apps/api/src/app.ts"
+  - "apps/api/src/server.ts"
+  - "apps/api/src/config.ts"
+  - "apps/api/src/logger.ts"
+  - "apps/api/src/middleware/**"
+  - "apps/api/src/openapi.ts"
+  - "apps/api/src/prisma/**"
+
+  # Shared workspace packages (DTO types, validators).
+  - "packages/**"
+
+  # Web shell — layout, navbar, footer, globals, tailwind config, the
+  # openapi-fetch wrapper. A change here can regress every page.
+  - "apps/web/src/app/layout.tsx"
+  - "apps/web/src/app/globals.css"
+  - "apps/web/src/app/loading.tsx"
+  - "apps/web/src/app/error.tsx"
+  - "apps/web/src/app/not-found.tsx"
+  - "apps/web/src/components/Navbar*"
+  - "apps/web/src/components/Footer*"
+  - "apps/web/src/lib/api/**"
+  - "apps/web/src/generated/**"
+  - "apps/web/next.config.ts"
+  - "apps/web/tailwind.config.*"
+  - "apps/web/postcss.config.*"
+
+  # Tooling that governs how tests themselves run.
+  - "playwright.config.ts"
+  - "apps/*/playwright.config.ts"
+  - "vitest.config.*"
+  - "apps/*/vitest.config.*"
+  - "tests/affected-map.yaml"
+
+scopes:
+  # ─── Backend scopes ──────────────────────────────────────────────
+  #
+  # Naming follows planner's roadmap (issues #4–#14). Globs assume the
+  # per-resource layout from ADR 001 (apps/api/src/routes/<area>.ts,
+  # apps/api/src/services/<area>*). Middleware that is strictly
+  # auth-gate-scoped (`middleware/auth*`) belongs to api-auth;
+  # cross-cutting middleware is in full_triggers above.
+
+  api-auth:
+    # #4 register/login/current-user, #5 auth middleware, #6 PUT /user.
+    files:
+      - "apps/api/src/routes/auth.ts"
+      - "apps/api/src/routes/users.ts"
+      - "apps/api/src/routes/user.ts"
+      - "apps/api/src/services/auth*"
+      - "apps/api/src/services/users*"
+      - "apps/api/src/middleware/auth*"
+      - "apps/api/src/middleware/jwt*"
+    specs:
+      - "tests/e2e/specs/auth*.spec.ts"
+    newman:
+      - "tests/api/collections/auth.postman_collection.json"
+      - "tests/api/collections/users.postman_collection.json"
+    uat: []
+
+  api-profiles:
+    # #7 view / follow / unfollow.
+    files:
+      - "apps/api/src/routes/profiles.ts"
+      - "apps/api/src/services/profiles*"
+    specs:
+      - "tests/e2e/specs/profile*.spec.ts"
+    newman:
+      - "tests/api/collections/profiles.postman_collection.json"
+    uat: []
+
+  api-articles:
+    # #8 create/read, #9 update/delete, #10 list+filters, #11 feed,
+    # #12 favorite/unfavorite.
+    files:
+      - "apps/api/src/routes/articles.ts"
+      - "apps/api/src/services/articles*"
+      - "apps/api/src/services/favorites*"
+      - "apps/api/src/services/feed*"
+      - "apps/api/src/services/slug*"
+    specs:
+      - "tests/e2e/specs/article*.spec.ts"
+      - "tests/e2e/specs/feed*.spec.ts"
+    newman:
+      - "tests/api/collections/articles.postman_collection.json"
+      - "tests/api/collections/favorites.postman_collection.json"
+    uat: []
+
+  api-comments:
+    # #13 CRUD on articles.
+    files:
+      - "apps/api/src/routes/comments.ts"
+      - "apps/api/src/services/comments*"
+    specs:
+      - "tests/e2e/specs/comment*.spec.ts"
+    newman:
+      - "tests/api/collections/comments.postman_collection.json"
+    uat: []
+
+  api-tags:
+    # #14 top-20 tags.
+    files:
+      - "apps/api/src/routes/tags.ts"
+      - "apps/api/src/services/tags*"
+    specs:
+      - "tests/e2e/specs/tags*.spec.ts"
+    newman:
+      - "tests/api/collections/tags.postman_collection.json"
+    uat: []
+
+  # ─── Frontend scopes ─────────────────────────────────────────────
+  #
+  # Layout shell / navbar / footer / globals live under full_triggers,
+  # so each web-* scope represents a page family plus the feature
+  # folder that page consumes.
+
+  web-auth:
+    # #16 register + login pages (the RSC shell plus the feature/auth
+    # client code). Settings page (#21) has its own scope.
+    files:
+      - "apps/web/src/app/(auth)/**"
+      - "apps/web/src/app/login/**"
+      - "apps/web/src/app/register/**"
+      - "apps/web/src/features/auth/**"
+    specs:
+      - "tests/e2e/specs/login*.spec.ts"
+      - "tests/e2e/specs/register*.spec.ts"
+    newman: []
+    uat:
+      - "tests/uat/specs/sign-up*.uat.ts"
+
+  web-feed:
+    # #17 homepage (global / your feed / popular tags).
+    files:
+      - "apps/web/src/app/page.tsx"
+      - "apps/web/src/app/(home)/**"
+      - "apps/web/src/features/articles/Feed*"
+      - "apps/web/src/features/articles/ArticleList*"
+      - "apps/web/src/features/tags/**"
+    specs:
+      - "tests/e2e/specs/home*.spec.ts"
+      - "tests/e2e/specs/feed*.spec.ts"
+    newman: []
+    uat:
+      - "tests/uat/specs/browse*.uat.ts"
+
+  web-article:
+    # #18 article detail (markdown + comments + follow/favorite).
+    files:
+      - "apps/web/src/app/article/**"
+      - "apps/web/src/features/articles/Article*"
+      - "apps/web/src/features/articles/Markdown*"
+      - "apps/web/src/features/comments/**"
+    specs:
+      - "tests/e2e/specs/article-detail*.spec.ts"
+      - "tests/e2e/specs/comment*.spec.ts"
+    newman: []
+    uat:
+      - "tests/uat/specs/read-article*.uat.ts"
+
+  web-editor:
+    # #19 editor — create + edit article with tag-pill input.
+    files:
+      - "apps/web/src/app/editor/**"
+      - "apps/web/src/features/articles/Editor*"
+      - "apps/web/src/features/articles/TagPill*"
+    specs:
+      - "tests/e2e/specs/editor*.spec.ts"
+    newman: []
+    uat:
+      - "tests/uat/specs/write-article*.uat.ts"
+
+  web-profile:
+    # #20 profile page (banner + articles/favorited tabs + follow).
+    files:
+      - "apps/web/src/app/profile/**"
+      - "apps/web/src/features/profiles/**"
+    specs:
+      - "tests/e2e/specs/profile*.spec.ts"
+    newman: []
+    uat: []
+
+  web-settings:
+    # #21 settings page (update profile + change password + logout).
+    files:
+      - "apps/web/src/app/settings/**"
+      - "apps/web/src/features/auth/Settings*"
+    specs:
+      - "tests/e2e/specs/settings*.spec.ts"
+    newman: []
+    uat: []
