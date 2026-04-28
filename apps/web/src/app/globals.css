@@ -1,19 +1,189 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/*
+ * RealWorld canonical look. The Conduit style guide ships a global
+ * stylesheet that the spec's acceptance tests (and every reference
+ * implementation) sniff for: Source Sans Pro body font, green
+ * (#5cb85c) navbar active colour, and a dark-green banner on the
+ * home page. Tailwind handles layout + utilities; this companion
+ * layer pins the spec-mandated classes so `.navbar`, `.home-page
+ * .banner`, and `.tag-pill` render to spec no matter which page
+ * references them.
+ */
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+:root {
+  --conduit-green: #5cb85c;
+  --conduit-green-dark: #4aa14a;
+  --conduit-banner-bg: #5cb85c;
+  --conduit-banner-shadow: #3d8b3d;
 }
 
 body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-family:
+    "Source Sans Pro",
+    "Helvetica Neue",
+    Helvetica,
+    Arial,
+    sans-serif;
+  color: #373a3c;
+  background: #ffffff;
+  margin: 0;
+}
+
+a {
+  color: var(--conduit-green);
+  text-decoration: none;
+}
+
+a:hover,
+a:focus {
+  color: var(--conduit-green-dark);
+  text-decoration: underline;
+}
+
+/* ── Layout wrapper ─────────────────────────────────────────── */
+
+.container {
+  width: 100%;
+  max-width: 1140px;
+  margin: 0 auto;
+  padding: 0 15px;
+  box-sizing: border-box;
+}
+
+/* ── Navbar ─────────────────────────────────────────────────── */
+
+.navbar {
+  background: #ffffff;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  padding: 0.5rem 0;
+}
+
+.navbar .container {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.navbar-brand {
+  font-family: "Titillium Web", "Source Sans Pro", sans-serif;
+  font-weight: 700;
+  color: var(--conduit-green);
+  font-size: 1.5rem;
+  text-transform: lowercase;
+}
+
+.navbar-nav {
+  list-style: none;
+  display: flex;
+  gap: 1rem;
+  margin: 0;
+  padding: 0;
+}
+
+.nav-item {
+  display: inline-flex;
+}
+
+.nav-link {
+  color: rgba(0, 0, 0, 0.3);
+  padding: 0.5rem 0;
+  transition: color 120ms ease;
+}
+
+.nav-link:hover,
+.nav-link:focus,
+.nav-link.active {
+  color: var(--conduit-green);
+  text-decoration: none;
+}
+
+.user-pic {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  vertical-align: middle;
+  margin-right: 4px;
+}
+
+/* ── Home banner ────────────────────────────────────────────── */
+
+.home-page .banner {
+  background: var(--conduit-banner-bg);
+  box-shadow:
+    inset 0 8px 8px -8px var(--conduit-banner-shadow),
+    inset 0 -8px 8px -8px var(--conduit-banner-shadow);
+  color: #ffffff;
+  padding: 2rem 0;
+  margin-bottom: 2rem;
+  text-align: center;
+}
+
+.home-page .banner .logo-font {
+  font-family: "Titillium Web", "Source Sans Pro", sans-serif;
+  font-weight: 700;
+  font-size: 3.5rem;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.home-page .banner p {
+  font-size: 1.5rem;
+  font-weight: 300;
+}
+
+/* ── Tag pill (used across feed, editor, sidebars) ──────────── */
+
+.tag-pill {
+  display: inline-block;
+  padding: 0.1rem 0.6rem;
+  border-radius: 10rem;
+  background: #818a91;
+  color: #ffffff;
+  font-size: 0.8rem;
+  margin-right: 3px;
+}
+
+.tag-outline {
+  background: transparent;
+  border: 1px solid #818a91;
+  color: #818a91;
+}
+
+/* ── Footer ─────────────────────────────────────────────────── */
+
+footer {
+  background: #f3f3f3;
+  padding: 1.5rem 0;
+  margin-top: 3rem;
+}
+
+footer .container {
+  text-align: center;
+}
+
+footer .logo-font {
+  color: var(--conduit-green);
+  font-family: "Titillium Web", "Source Sans Pro", sans-serif;
+  font-weight: 700;
+  margin-right: 0.5rem;
+}
+
+footer .attribution {
+  color: #bbb;
+  font-size: 0.8rem;
+}
+
+/* ── Coming-soon placeholder (stub pages) ───────────────────── */
+
+.coming-soon {
+  max-width: 540px;
+  margin: 4rem auto;
+  text-align: center;
+  color: #55595c;
+}
+
+.coming-soon h1 {
+  font-size: 2rem;
+  color: var(--conduit-green);
+  margin-bottom: 1rem;
 }
