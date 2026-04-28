@@ -146,10 +146,15 @@ if (( gate_rc == 0 )); then
   exit 0
 fi
 
-# gate_rc != 0. Extract fail reasons and confirm they are ONLY
-# the three structurally-unsatisfiable gates: baseline, E2E summary,
-# screenshots.
-fail_lines=$(grep -E '^  - ' "$gate_log" || true)
+# gate_rc != 0. Extract fail reasons from the gate's `MERGE BLOCKED.
+# Reasons:` block only — the gate ALSO prints an `Actions:` block
+# with remediation advice that includes `  - `-prefixed bullets
+# (e.g. "If NEW failures are in the PR: swap PR to claim:generator").
+# Matching those remediation bullets was the rework-2 false-positive.
+# We scope the extractor with sed to the Reasons block, which ends at
+# the first blank line.
+fail_lines=$(sed -n '/^MERGE BLOCKED\. Reasons:$/,/^$/p' "$gate_log" \
+             | grep -E '^  - ' || true)
 unexpected=()
 while IFS= read -r line; do
   [[ -z "$line" ]] && continue
@@ -157,10 +162,8 @@ while IFS= read -r line; do
     *"no baseline cached"*|*"baseline stale"*)                        : ;;  # gate 2, expected
     *"no tests/e2e/test-results/"*|*"no E2E summary"*|*"E2E report stale"*) : ;;  # gate 3, expected
     *"no screenshots/"*|*"screenshots/"*"has"*"files; need"*|*"no recent screenshots"*) : ;;  # gate 4, expected
-    *"NEW failure"*|*"NEW persona"*)
-      unexpected+=("$line  [NEW failure introduced by PR — BLOCK]") ;;
     *)
-      unexpected+=("$line  [non-structural gate failure — BLOCK]") ;;
+      unexpected+=("$line") ;;
   esac
 done <<<"$fail_lines"
 
@@ -169,7 +172,7 @@ if (( ${#unexpected[@]} > 0 )); then
   echo "  ✗ EXEMPTION NOT APPLICABLE — one or more failures are outside"
   echo "    the three structurally-unsatisfiable gates (baseline / E2E /"
   echo "    screenshots):"
-  printf '    %s\n' "${unexpected[@]}"
+  printf '    %s  [non-structural OR new failure — BLOCK]\n' "${unexpected[@]}"
   echo ""
   echo "  Resolution: either fix the failure (if it's a generator bug,"
   echo "  swap claim:evaluator → claim:generator with ## 수정 요청), or"
@@ -179,7 +182,7 @@ if (( ${#unexpected[@]} > 0 )); then
 fi
 
 banner "exemption APPLICABLE — structural gates only"
-echo "  ✓ The three failed gates are exactly the structurally-unsatisfiable"
+echo "  ✓ The failed gates are confined to the structurally-unsatisfiable"
 echo "    set (baseline, E2E summary, screenshots) authorized by ADR 002."
 echo "  ✓ All preconditions (labels, scope-out, rubric, ADR cite) met."
 echo "  ✓ Merge authorized."
