@@ -5,13 +5,19 @@ FROM node:22-alpine AS base
 RUN corepack enable
 
 # ---- deps ----
+# The deps stage only copies manifests (no prisma/ tree) so dependency
+# caching doesn't invalidate on every source edit. `pnpm install`
+# would normally run the api's postinstall → `prisma generate`, which
+# needs the schema on disk — so we suppress the hook here with
+# SKIP_PRISMA_GENERATE. The builder stage runs generate explicitly
+# once the schema is copied in.
 FROM base AS deps
 WORKDIR /repo
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* .npmrc* ./
 COPY apps/api/package.json apps/api/package.json
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
     pnpm config set store-dir /pnpm/store && \
-    pnpm install --filter @conduit/api... --frozen-lockfile=false
+    SKIP_PRISMA_GENERATE=1 pnpm install --filter @conduit/api... --frozen-lockfile=false
 
 # ---- builder ----
 FROM base AS builder
