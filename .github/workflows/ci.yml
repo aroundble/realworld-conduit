@@ -96,6 +96,23 @@ jobs:
       - name: smoke
         run: bash scripts/smoke.sh
 
+      - name: run newman smoke
+        # Newman writes tests/api/results/<utc-ts>.xml + a `latest`
+        # symlink, both of which satisfy the evaluator's gate 6
+        # (scripts/eval-merge-gate.sh:~325). ~100ms against /healthz,
+        # well under the AC's 15s budget.
+        env:
+          API_URL: http://localhost:3001
+        run: pnpm test:conformance:smoke
+
+      - name: upload newman smoke artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: newman-smoke-${{ github.event.pull_request.number || github.run_id }}
+          path: tests/api/results/**
+          if-no-files-found: warn
+
       - name: compose logs on failure
         if: failure()
         run: $COMPOSE logs --no-color --tail=200
