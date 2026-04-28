@@ -113,6 +113,34 @@ jobs:
           path: tests/api/results/**
           if-no-files-found: warn
 
+      - name: install playwright browsers
+        # The runner already has Node + pnpm from the `install` job's tree;
+        # we only need the browser binaries. --with-deps pulls the OS libs
+        # the chromium build needs on ubuntu-latest.
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: run playwright smoke
+        # Smoke binds to the host ports the compose stack exposes by default.
+        # dev-bootstrap writes API_HOST_PORT=3001 / WEB_HOST_PORT=3000 into
+        # .env unless overridden, which matches these URLs.
+        env:
+          PLAYWRIGHT_BASE_URL: http://localhost:3000
+          API_URL: http://localhost:3001
+        run: pnpm test:e2e:smoke
+
+      - name: upload playwright smoke artifacts
+        # summary.json satisfies the evaluator's gate 3, the per-issue
+        # screenshot satisfies gate 4. Uploading both on every run keeps
+        # the audit trail even if compose brings the stack down after.
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-smoke-${{ github.event.pull_request.number || github.run_id }}
+          path: |
+            tests/e2e/test-results/**/summary.json
+            tests/e2e/screenshots/**
+          if-no-files-found: warn
+
       - name: compose logs on failure
         if: failure()
         run: $COMPOSE logs --no-color --tail=200
