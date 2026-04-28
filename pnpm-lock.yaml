@@ -23,6 +23,9 @@ importers:
       hono:
         specifier: 4.12.15
         version: 4.12.15
+      prisma:
+        specifier: 7.8.0
+        version: 7.8.0(@types/react-dom@19.2.2(@types/react@19.2.2))(@types/react@19.2.2)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(typescript@5.9.3)
     devDependencies:
       '@types/node':
         specifier: 22.18.2
@@ -30,9 +33,6 @@ importers:
       eslint:
         specifier: 9.38.0
         version: 9.38.0(jiti@2.6.1)
-      prisma:
-        specifier: 7.8.0
-        version: 7.8.0(@types/react-dom@19.2.2(@types/react@19.2.2))(@types/react@19.2.2)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(typescript@5.9.3)
       tsx:
         specifier: 4.21.0
         version: 4.21.0

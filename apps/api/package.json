@@ -9,6 +9,7 @@
     "start": "node dist/server.js",
     "lint": "eslint 'src/**/*.ts'",
     "typecheck": "tsc --noEmit",
+    "postinstall": "prisma generate",
     "prisma:generate": "prisma generate",
     "prisma:migrate:deploy": "prisma migrate deploy",
     "prisma:migrate:dev": "prisma migrate dev"
