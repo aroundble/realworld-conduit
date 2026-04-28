@@ -6,7 +6,11 @@
 # because the walking-skeleton exemption is a project policy, not a
 # harness-level rule.
 #
-# Policy: ADR 002 (docs/adr/002-walking-skeleton-merge-gate-exemption.md).
+# Policy:
+#   - Default mode: ADR 002
+#     (docs/adr/002-walking-skeleton-merge-gate-exemption.md).
+#   - --gate-enabler mode: ADR 003
+#     (docs/adr/003-gate-enabler-infra-merge-exemption.md).
 #
 # Why this wrapper exists
 # -----------------------
@@ -27,8 +31,13 @@
 # the preconditions hold.
 #
 # Usage:
+#   # Walking-skeleton (ADR 002, ladder/level-0 + priority/1):
 #   bash scripts/project-eval-level0.sh --pr <N> --issue <I> \
 #        --comment-file <path> [--base latest]
+#
+#   # Gate-enabler (ADR 003, ladder/level-1, gate-config-only diff):
+#   bash scripts/project-eval-level0.sh --pr <N> --issue <I> \
+#        --comment-file <path> --gate-enabler [--base latest]
 #
 # Environment:
 #   All HARNESS_GATE_* envs pass through to scripts/eval-merge-gate.sh.
@@ -50,6 +59,7 @@
 #
 # See also:
 #   - docs/adr/002-walking-skeleton-merge-gate-exemption.md
+#   - docs/adr/003-gate-enabler-infra-merge-exemption.md
 #   - scripts/eval-merge-gate.sh (githarness-managed, do not edit here)
 
 set -uo pipefail
@@ -58,6 +68,7 @@ PR=""
 ISSUE=""
 COMMENT_FILE=""
 BASE="latest"
+MODE="walking-skeleton"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -65,6 +76,7 @@ while [[ $# -gt 0 ]]; do
     --issue) ISSUE="$2"; shift 2 ;;
     --comment-file) COMMENT_FILE="$2"; shift 2 ;;
     --base) BASE="$2"; shift 2 ;;
+    --gate-enabler) MODE="gate-enabler"; shift ;;
     -h|--help)
       sed -n '2,45p' "$0"
       exit 0 ;;
@@ -85,18 +97,53 @@ REPO="${HARNESS_REPO:-}"
 
 banner() { printf "\n=== %s ===\n" "$*"; }
 
-# ---- Precondition 1: labels ----------------------------------
-banner "precondition 1: PR labels include ladder/level-0 AND priority/1"
-labels=$(gh pr view "$PR" --repo "$REPO" --json labels -q '[.labels[].name] | join(" ")' 2>/dev/null || echo '')
-has_l0=$(echo " $labels " | grep -c ' ladder/level-0 ' || true)
-has_p1=$(echo " $labels " | grep -c ' priority/1 ' || true)
-if (( has_l0 == 0 || has_p1 == 0 )); then
-  echo "  ✗ PR #$PR labels: $labels"
-  echo "  ✗ Exemption REQUIRES both ladder/level-0 AND priority/1."
-  echo "  ✗ Refusing to invoke exemption on a non-walking-skeleton PR."
-  exit 1
+# ---- Precondition 1: labels (mode-dependent) -----------------
+if [[ "$MODE" == "gate-enabler" ]]; then
+  banner "precondition 1 (gate-enabler mode): ladder/level-1 + gate-config-only diff"
+  labels=$(gh pr view "$PR" --repo "$REPO" --json labels -q '[.labels[].name] | join(" ")' 2>/dev/null || echo '')
+  has_l1=$(echo " $labels " | grep -c ' ladder/level-1 ' || true)
+  if (( has_l1 == 0 )); then
+    echo "  ✗ PR #$PR labels: $labels"
+    echo "  ✗ --gate-enabler REQUIRES ladder/level-1 (ADR 003 §Scope)."
+    echo "  ✗ Walking-skeleton PRs use default mode (ladder/level-0 + priority/1)."
+    exit 1
+  fi
+  # Diff-shape check: every changed path must match the allow-list.
+  changed=$(gh pr diff "$PR" --repo "$REPO" --name-only 2>/dev/null || echo '')
+  if [[ -z "$changed" ]]; then
+    echo "  ✗ could not list PR #$PR's changed files" >&2
+    exit 1
+  fi
+  bad_paths=()
+  while IFS= read -r path; do
+    [[ -z "$path" ]] && continue
+    case "$path" in
+      tests/affected-map.yaml|tests/baseline-cache/*|scripts/eval-*) : ;;
+      *) bad_paths+=("$path") ;;
+    esac
+  done <<<"$changed"
+  if (( ${#bad_paths[@]} > 0 )); then
+    echo "  ✗ PR diff contains paths outside the gate-enabler allow-list:"
+    printf '    %s\n' "${bad_paths[@]}"
+    echo "  Allowed: tests/affected-map.yaml | tests/baseline-cache/** | scripts/eval-*"
+    echo "  ✗ Refusing gate-enabler exemption; file a feature PR through the full gate."
+    exit 1
+  fi
+  echo "  ✓ labels present: ladder/level-1"
+  echo "  ✓ diff confined to gate-configuration files"
+else
+  banner "precondition 1: PR labels include ladder/level-0 AND priority/1"
+  labels=$(gh pr view "$PR" --repo "$REPO" --json labels -q '[.labels[].name] | join(" ")' 2>/dev/null || echo '')
+  has_l0=$(echo " $labels " | grep -c ' ladder/level-0 ' || true)
+  has_p1=$(echo " $labels " | grep -c ' priority/1 ' || true)
+  if (( has_l0 == 0 || has_p1 == 0 )); then
+    echo "  ✗ PR #$PR labels: $labels"
+    echo "  ✗ Exemption REQUIRES both ladder/level-0 AND priority/1."
+    echo "  ✗ Refusing to invoke exemption on a non-walking-skeleton PR."
+    exit 1
+  fi
+  echo "  ✓ labels present: ladder/level-0, priority/1"
 fi
-echo "  ✓ labels present: ladder/level-0, priority/1"
 
 # ---- Precondition 2: issue scope-out clause ------------------
 banner "precondition 2: issue #$ISSUE body scopes OUT the missing infra"
@@ -111,16 +158,24 @@ fi
 echo "  ✓ issue body contains Out-of-scope clause (or references #22/#23)"
 
 # ---- Precondition 3: merge comment has rubric + ADR cite -----
-banner "precondition 3: merge comment cites ADR 002 and rubric ≥ 75"
+if [[ "$MODE" == "gate-enabler" ]]; then
+  banner "precondition 3: merge comment cites ADR 003 and rubric ≥ 75"
+  adr_pat='ADR *003|adr/003-gate-enabler'
+  adr_label="ADR 003 citation"
+else
+  banner "precondition 3: merge comment cites ADR 002 and rubric ≥ 75"
+  adr_pat='ADR *002|adr/002-walking-skeleton'
+  adr_label="ADR 002 citation"
+fi
 missing=()
-grep -qiE 'ADR *002|adr/002-walking-skeleton' "$COMMENT_FILE" || missing+=("ADR 002 citation")
+grep -qiE "$adr_pat" "$COMMENT_FILE" || missing+=("$adr_label")
 grep -qiE 'rubric|score.*[0-9]+/100|total:? *[7-9][0-9]|total:? *100' "$COMMENT_FILE" || missing+=("rubric total")
 grep -qiE 'SKIP_COMPOSE|SKIP_API|SKIP_UAT|skip.*compose.*api.*uat' "$COMMENT_FILE" || missing+=("explicit skip-env listing")
 if (( ${#missing[@]} > 0 )); then
   echo "  ✗ merge comment missing: ${missing[*]}"
   exit 1
 fi
-echo "  ✓ merge comment cites ADR 002, rubric, and skip envs"
+echo "  ✓ merge comment cites ADR, rubric, and skip envs"
 
 # ---- Run the real gate with the three existing skip envs -----
 banner "invoking scripts/eval-merge-gate.sh with exemption envs"
