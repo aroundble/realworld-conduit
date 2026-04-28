@@ -1,6 +1,6 @@
 {
-  "githarness_version": "0.2.41",
-  "written_at_utc": "2026-04-28T05:44:58.667Z",
+  "githarness_version": "0.2.42",
+  "written_at_utc": "2026-04-28T06:01:49.928Z",
   "catalog_ref": "docs/14-bp-catalog.md",
   "included_bps": [
     "two-hard-donts",

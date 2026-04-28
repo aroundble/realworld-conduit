@@ -915,11 +915,19 @@ run_cycle() {
   # and append a summary row to $HARNESS_STATE_DIR/token-ledger-<role>.jsonl.
   # Precise per-turn data (input / cache_creation / cache_read / output);
   # no regex scraping of transient pane footers.
+  #
+  # v0.2.42: human-vibe audit — same source file, extract external-
+  # origin user inputs (non-wake, non-tool_result, non-bootstrap)
+  # and drop per-record JSON into
+  # <main>/.githarness/audit/human-prompts/YYYYMMDD/. Idempotent via
+  # per-role index under $HARNESS_STATE_DIR. This is the research-
+  # grade "what external vibe did the harness receive" log.
   for role in $ROLES; do
     local wt
     wt=$(worktree_for_role "$role")
     [[ -d "$wt" ]] || continue
     bash "$ROOT/scripts/token-ledger-sample.sh" "$role" "$wt" 2>/dev/null || true
+    bash "$ROOT/scripts/human-vibe-audit.sh" "$role" "$wt" 2>/dev/null || true
   done
   # Budget guard: sum the latest-per-session totals across the
   # three role ledgers, compared against HARNESS_TOKEN_BUDGET_24H_K
