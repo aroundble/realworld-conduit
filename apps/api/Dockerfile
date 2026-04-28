@@ -35,12 +35,19 @@ RUN pnpm --filter @conduit/api build
 # ---- deploy ----
 # pnpm deploy materialises a self-contained node_modules with real files
 # (no symlinks into the workspace store), ready to ship to a runner image.
+# The generated Prisma client (.prisma/client/) sits *inside* the hashed
+# @prisma/client directory in the workspace tree, and pnpm deploy's dedup
+# does not always carry that generated artefact into the target.
+# Re-running `prisma generate` inside /prod/api puts a fresh copy in the
+# deployed node_modules so `require('.prisma/client/default')` resolves
+# in the runner image.
 FROM base AS deploy
 WORKDIR /repo
 COPY --from=builder /repo ./
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
     pnpm config set store-dir /pnpm/store && \
-    pnpm deploy --legacy --filter @conduit/api --prod /prod/api
+    pnpm deploy --legacy --filter @conduit/api --prod /prod/api && \
+    cd /prod/api && node_modules/.bin/prisma generate
 
 # ---- runner ----
 FROM node:22-alpine AS runner

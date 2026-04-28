@@ -3,6 +3,7 @@ import { corsMiddleware } from "./middleware/cors.js";
 import { errorHandler } from "./middleware/error.js";
 import { requestLogger } from "./middleware/logger.js";
 import { requestId, type RequestIdVars } from "./middleware/request-id.js";
+import { registerAuthRoutes } from "./routes/auth.js";
 import { registerHealthzRoute } from "./routes/healthz.js";
 import { registerInternalThrowRoute } from "./routes/internal-throw.js";
 
@@ -19,6 +20,7 @@ export const createApp = (): OpenAPIHono<AppEnv> => {
   app.use("*", corsMiddleware());
 
   registerHealthzRoute(app);
+  registerAuthRoutes(app);
   registerInternalThrowRoute(app);
 
   app.doc("/docs/json", {
