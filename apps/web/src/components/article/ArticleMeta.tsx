@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { RelativeTime } from "@/components/RelativeTime";
 import type { Article } from "@/features/articles/queries";
 import { FollowButton } from "./FollowButton";
 import { FavoriteButton } from "./FavoriteButton";
@@ -8,17 +9,6 @@ type Props = {
   article: Article;
   viewerUsername: string | null;
   authed: boolean;
-};
-
-const formatDate = (iso: string): string => {
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime())
-    ? iso
-    : d.toLocaleDateString("en-US", {
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-      });
 };
 
 // Article author line + action buttons. Reused by both the banner
@@ -46,7 +36,7 @@ export const ArticleMeta = ({ article, viewerUsername, authed }: Props) => {
         <Link href={profileHref} className="author">
           {article.author.username}
         </Link>
-        <span className="date">{formatDate(article.createdAt)}</span>
+        <RelativeTime iso={article.createdAt} className="date" />
         <span className="read-time" data-testid="read-time">
           {article.readingTimeMinutes} min read
         </span>
