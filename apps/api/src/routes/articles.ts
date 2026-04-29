@@ -68,6 +68,15 @@ const ListArticlesQuery = z
     tag: z.string().optional(),
     author: z.string().optional(),
     favorited: z.string().optional(),
+    // Free-text search across title + description (#117). Bounded
+    // length keeps unbounded scans out of the production surface —
+    // 1-char queries return empty at the service layer; anything
+    // over 100 chars is rejected 422 here.
+    q: z
+      .string()
+      .min(2, "must be at least 2 characters")
+      .max(100, "must be at most 100 characters")
+      .optional(),
     limit: z.coerce
       .number()
       .int()
@@ -307,6 +316,7 @@ export const registerArticleRoutes = (app: OpenAPIHono<AppEnv>): void => {
         tag: q.tag,
         author: q.author,
         favoritedBy: q.favorited,
+        q: q.q,
         limit,
         offset,
       },

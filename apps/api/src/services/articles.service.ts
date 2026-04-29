@@ -320,6 +320,9 @@ export type ListArticlesFilters = {
   tag?: string;
   author?: string;
   favoritedBy?: string;
+  // Free-text filter matched case-insensitively against title +
+  // description (#117). 2-100 chars enforced at the route schema layer.
+  q?: string;
   limit: number;
   offset: number;
 };
@@ -360,6 +363,16 @@ export const listArticles = async (
   }
   if (filters.favoritedBy) {
     where.favoritedBy = { some: { username: filters.favoritedBy } };
+  }
+  if (filters.q && filters.q.length >= 2) {
+    // Free-text match on title OR description, case-insensitive.
+    // Prisma translates mode:insensitive to Postgres ILIKE. Composes
+    // with tag/author/favoritedBy via AND (Prisma's implicit top-
+    // level conjunction — sibling keys in `where` are AND'd).
+    where.OR = [
+      { title: { contains: filters.q, mode: "insensitive" } },
+      { description: { contains: filters.q, mode: "insensitive" } },
+    ];
   }
 
   const [rows, articlesCount] = await Promise.all([
