@@ -11,6 +11,9 @@ export const requestLogger = () =>
       method: c.req.method,
       path: new URL(c.req.url).pathname,
       status: c.res.status,
-      durationMs: Date.now() - started,
+      // snake_case matches the #25 AC which names the key `duration_ms`.
+      // Pino records the line as structured JSON so downstream log
+      // consumers can filter on this key verbatim.
+      duration_ms: Date.now() - started,
     });
   });

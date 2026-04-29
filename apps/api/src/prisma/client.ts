@@ -10,6 +10,7 @@
 //      Accelerate.
 import pkg, { type PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { logger } from "../logger.js";
 const { PrismaClient: PrismaClientCtor } = pkg;
 
 const databaseUrl = process.env.DATABASE_URL;
@@ -35,7 +36,7 @@ if (process.env.NODE_ENV !== "production") {
 }
 
 const disconnect = async (signal: string): Promise<void> => {
-  console.log(`[api] ${signal} received — disconnecting prisma`);
+  logger.info({ signal }, "disconnecting prisma");
   await prisma.$disconnect();
 };
 
