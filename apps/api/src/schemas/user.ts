@@ -33,6 +33,16 @@ export const LoginRequestSchema = z
   })
   .openapi("LoginRequest");
 
+// Empty string → null coercion for nullable user-update fields.
+// Spec treats `{"bio":""}` / `{"image":""}` as "clear this field"
+// and expects the response to echo `null` + persist null (see #64).
+// Apply to the bio + image branches only — email/username/password
+// stay required-string shaped because the spec rejects empty strings
+// there (see #65 / errors-auth/12-update-email-to-empty-string-
+// should-reject.bru).
+const emptyToNull = <T extends z.ZodType<string, unknown>>(inner: T) =>
+  z.preprocess((v) => (v === "" ? null : v), inner.nullable());
+
 export const UpdateUserRequestSchema = z
   .object({
     user: z
@@ -44,8 +54,8 @@ export const UpdateUserRequestSchema = z
           .min(8, "is too short (minimum is 8 characters)")
           .max(200)
           .optional(),
-        bio: z.string().max(2000).nullable().optional(),
-        image: z.string().url("is not a valid url").nullable().optional(),
+        bio: emptyToNull(z.string().max(2000)).optional(),
+        image: emptyToNull(z.string().url("is not a valid url")).optional(),
       })
       .refine(
         (u) => Object.values(u).some((v) => v !== undefined),
