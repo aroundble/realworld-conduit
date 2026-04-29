@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArticleList } from "@/components/article/ArticleList";
+import { JsonLd } from "@/components/JsonLd";
 import { ProfileBanner } from "@/components/profile/ProfileBanner";
 import { ArticleListSkeleton } from "@/components/skeletons/ArticleListSkeleton";
 import {
@@ -14,6 +15,7 @@ import {
   readCurrentUsername,
 } from "@/features/auth/session";
 import { getProfile } from "@/features/profiles/queries";
+import { buildPersonJsonLd } from "@/lib/jsonld";
 import { siteUrl } from "@/lib/site";
 
 // Dynamic share-preview metadata (#113). See the article page's
@@ -118,6 +120,9 @@ export default async function ProfilePage({
 
   return (
     <div className="profile-page">
+      {/* Person JSON-LD (#148). Profile pages opt into Person
+          rich-results. */}
+      <JsonLd payload={buildPersonJsonLd(profile)} id="jsonld-person" />
       <ProfileBanner
         profile={profile}
         viewerUsername={viewerUsername}

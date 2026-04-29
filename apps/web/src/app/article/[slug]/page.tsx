@@ -6,6 +6,7 @@ import { ArticleBody } from "@/components/article/ArticleBody";
 import { ArticleMeta } from "@/components/article/ArticleMeta";
 import { CommentList } from "@/components/comment/CommentList";
 import { CommentForm } from "@/components/comment/CommentForm";
+import { JsonLd } from "@/components/JsonLd";
 import { CommentsSkeleton } from "@/components/skeletons/CommentsSkeleton";
 import {
   getArticle,
@@ -16,6 +17,7 @@ import {
   isAuthenticated,
   readCurrentUsername,
 } from "@/features/auth/session";
+import { buildArticleJsonLd } from "@/lib/jsonld";
 import { siteUrl } from "@/lib/site";
 
 // Dynamic share-preview metadata (#113). When a link previewer
@@ -108,6 +110,8 @@ export default async function ArticlePage({
 
   return (
     <div className="article-page">
+      {/* Article JSON-LD (#148). Rich-results eligibility in SERPs. */}
+      <JsonLd payload={buildArticleJsonLd(article)} id="jsonld-article" />
       <div className="banner">
         <div className="container">
           <h1>{article.title}</h1>

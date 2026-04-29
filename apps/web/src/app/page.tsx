@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { ArticleList } from "@/components/article/ArticleList";
 import { SearchBar } from "@/components/article/SearchBar";
 import { FeedTabs, type FeedMode } from "@/components/FeedTabs";
+import { JsonLd } from "@/components/JsonLd";
 import { TagCloud } from "@/components/TagCloud";
 import { TagCloudSkeleton } from "@/components/skeletons/TagCloudSkeleton";
 import {
@@ -11,6 +12,7 @@ import {
   type ArticleListPayload,
 } from "@/features/articles/queries";
 import { isAuthenticated } from "@/features/auth/session";
+import { buildWebSiteJsonLd } from "@/lib/jsonld";
 
 // Home page. RSC; reads search params + session cookie, picks the
 // article source (global list vs personalised feed vs tag-filtered
@@ -107,6 +109,11 @@ export default async function Home({
 
   return (
     <div className="home-page">
+      {/* WebSite + SearchAction JSON-LD (#148). Search engines
+          render an in-SERP search box for the site when this is
+          present. The action template points at /?q={search} —
+          same URL SearchBar (#117) emits. */}
+      <JsonLd payload={buildWebSiteJsonLd()} id="jsonld-website" />
       <div className="banner">
         <div className="container">
           <h1 className="logo-font">conduit</h1>
