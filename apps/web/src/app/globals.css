@@ -87,7 +87,7 @@ a:focus {
 
 .nav-link {
   color: rgba(0, 0, 0, 0.3);
-  padding: 0.5rem 0;
+  padding: 0.5rem 0.5rem;
   transition: color 120ms ease;
 }
 
@@ -96,6 +96,18 @@ a:focus {
 .nav-link.active {
   color: var(--conduit-green);
   text-decoration: none;
+}
+
+/* Touch-target floor on mobile — WCAG 2.5.5 requires ≥44×44px for
+ * interactive elements. The desktop nav-link padding is tight; on
+ * narrow viewports we relax it so tab + nav links clear the floor. */
+@media (max-width: 767px) {
+  .nav-link {
+    padding: 0.75rem 0.5rem;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
 }
 
 .user-pic {

@@ -216,3 +216,36 @@ test("axe a11y gate on settings page (#87)", async ({ page, context }) => {
   await page.goto(`${WEB_URL}/settings`);
   await runAxe(page);
 });
+
+// ---------------------------------------------------------------
+// #35 Phase 1 — fixture-driven scenario (proof of shape).
+//
+// The existing Scenarios 1-6 above prime the session inline via the
+// per-test `primeSession()` helper. This block uses the new
+// `authedContext` fixture from tests/e2e/fixtures/authStorage.ts
+// instead — suite-level user (per-worker), shared cookies. As
+// Phase 2 per-feature PRs migrate each spec, the inline
+// primeSession pattern goes away in favour of this fixture.
+// ---------------------------------------------------------------
+
+import { test as authedTest } from "../fixtures/authStorage";
+
+authedTest(
+  "Scenario (via fixture): authed user lands on settings with prefilled form",
+  async ({ authedContext, authedUser }) => {
+    const page = await authedContext.newPage();
+    try {
+      await page.goto(`${WEB_URL}/settings`);
+      const form = page.getByRole("form", { name: "Settings" });
+      await expect(form).toBeVisible();
+      await expect(form.getByPlaceholder("Your Name")).toHaveValue(
+        authedUser.username,
+      );
+      await expect(form.getByPlaceholder("Email")).toHaveValue(
+        `${authedUser.username}@jake.jake`,
+      );
+    } finally {
+      await page.close();
+    }
+  },
+);

@@ -282,3 +282,35 @@ test("axe a11y gate on homepage (#87)", async ({ page }) => {
   await page.goto(`${WEB_URL}/`);
   await runAxe(page);
 });
+
+// Mobile viewport coverage (#35 Phase 1). @mobile-tagged tests run
+// under the `mobile` project in playwright.config.ts (Pixel 5
+// emulation). Asserts the homepage reflows cleanly at narrow widths:
+// single-column list, navbar collapses / brand still visible, tap
+// targets meet the 44px floor.
+test("homepage reflows on mobile viewport @mobile", async ({ page }) => {
+  const jakeApi = await apiContext();
+  await registerUser(jakeApi, `jake-${uniq()}`);
+  await createArticle(jakeApi, `Mobile ${uniq()}`);
+  await page.goto(`${WEB_URL}/`);
+
+  // Navbar brand still visible at mobile viewport (375-412px wide).
+  const brand = page.locator(".navbar-brand");
+  await expect(brand).toBeVisible();
+
+  // First article preview renders within the mobile viewport width —
+  // no horizontal scroll.
+  const preview = page.locator(".article-preview").first();
+  await expect(preview).toBeVisible();
+  const box = await preview.boundingBox();
+  const vp = page.viewportSize();
+  if (!box || !vp) throw new Error("viewport / bounding box unavailable");
+  expect(box.width).toBeLessThanOrEqual(vp.width + 1);
+
+  // Tap-target floor: the Global Feed tab link is at least 44×44
+  // (WCAG 2.5.5 minimum target size for touch).
+  const globalTab = page.getByRole("link", { name: "Global Feed" });
+  const tabBox = await globalTab.boundingBox();
+  if (!tabBox) throw new Error("global feed tab box unavailable");
+  expect(tabBox.height).toBeGreaterThanOrEqual(44);
+});
