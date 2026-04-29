@@ -1,10 +1,16 @@
 "use server";
 
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { parseWithZod } from "@conform-to/zod/v4";
 import { apiFetch } from "@/lib/api/client";
-import { loginSchema, registerSchema } from "./schema";
-import { writeSession } from "./session";
+import { loginSchema, registerSchema, settingsSchema } from "./schema";
+import {
+  SESSION_COOKIE,
+  USER_COOKIE,
+  readSessionCookie,
+  writeSession,
+} from "./session";
 
 // Pattern adapted from yukicountry/realworld-nextjs-rsc @ f455599f
 // (`src/modules/features/auth/actions.ts`, MIT). The shape — Server
@@ -87,6 +93,7 @@ export const registerAction = async (
   redirect("/");
 };
 
+// (loginAction follows)
 export const loginAction = async (
   _prev: unknown,
   formData: FormData,
@@ -126,5 +133,75 @@ export const loginAction = async (
     username: res.data.user.username,
     image: res.data.user.image,
   });
+  redirect("/");
+};
+
+// Settings update (#21). On success the API returns a fresh UserEnvelope
+// + Set-Cookie (the token rotates whenever password changes and stays
+// stable otherwise — either way we re-write the session cookie so the
+// browser carries the latest). Success redirects to the user's profile.
+export const updateUserAction = async (
+  _prev: unknown,
+  formData: FormData,
+) => {
+  const submission = parseWithZod(formData, { schema: settingsSchema });
+  if (submission.status !== "success") {
+    return submission.reply();
+  }
+  const v = submission.value;
+
+  // Strip empty strings on optional fields so the API update is a
+  // proper partial — blank image/bio/password stay omitted (no change)
+  // rather than sent as "" and routed through the #64 empty-string
+  // coerce. Explicit clears are a different UX not exposed today.
+  const cookie = await readSessionCookie();
+  if (!cookie) {
+    redirect("/login?redirect=/settings");
+  }
+  const payload: Record<string, string> = {
+    username: v.username,
+    email: v.email,
+  };
+  if (v.image && v.image.length > 0) payload.image = v.image;
+  if (v.bio && v.bio.length > 0) payload.bio = v.bio;
+  if (v.password && v.password.length > 0) payload.password = v.password;
+
+  const res = await apiFetch<UserEnvelope>("/api/user", {
+    method: "PUT",
+    cookie: `${SESSION_COOKIE}=${cookie}`,
+    body: JSON.stringify({ user: payload }),
+  });
+  if (!res.ok) {
+    if (res.status === 422) {
+      return submission.reply({
+        fieldErrors: mergeApiErrors(res.data, [
+          "username",
+          "email",
+          "password",
+          "bio",
+          "image",
+        ]),
+      });
+    }
+    return submission.reply({
+      formErrors: ["server error — please try again"],
+    });
+  }
+
+  // API rotated the token (always new jti, fresh on password change).
+  // writeSession refreshes both cookies so the authed chrome + any
+  // downstream API calls carry the new credential.
+  await writeSession(res.setCookie, {
+    username: res.data.user.username,
+    image: res.data.user.image,
+  });
+  redirect(`/profile/${encodeURIComponent(res.data.user.username)}`);
+};
+
+// Logout (#21 scenario 5). Clears both cookies and redirects home.
+export const logoutAction = async (): Promise<never> => {
+  const jar = await cookies();
+  jar.delete(SESSION_COOKIE);
+  jar.delete(USER_COOKIE);
   redirect("/");
 };

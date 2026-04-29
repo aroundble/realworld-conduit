@@ -32,5 +32,30 @@ export const loginSchema = z.object({
     .min(1, "password can't be blank"),
 });
 
+// Settings (#21). Required fields keep their non-blank guard; image/
+// bio/password are optional and empty strings are treated below in
+// the action as "don't send this field" so the API update is a proper
+// partial. Password gets a length check when provided.
+export const settingsSchema = z.object({
+  image: z.string().optional(),
+  username: z
+    .string({ message: "username can't be blank" })
+    .min(1, "username can't be blank")
+    .max(100, "username is too long (maximum is 100 characters)"),
+  bio: z.string().optional(),
+  email: z
+    .string({ message: "email can't be blank" })
+    .min(1, "email can't be blank")
+    .email("email must be a valid email"),
+  password: z
+    .string()
+    .optional()
+    .refine(
+      (v) => v === undefined || v === "" || v.length >= 8,
+      "password is too short (minimum is 8 characters)",
+    ),
+});
+
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
+export type SettingsInput = z.infer<typeof settingsSchema>;

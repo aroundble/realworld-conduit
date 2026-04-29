@@ -1,5 +1,6 @@
 import "server-only";
 import { cookies } from "next/headers";
+import { apiFetch } from "@/lib/api/client";
 
 // Server-only session helpers.
 //
@@ -96,6 +97,29 @@ export const isAuthenticated = async (): Promise<boolean> => {
   // Either cookie is enough to treat the viewer as authed for redirect
   // purposes; the API will reject forged tokens on its own.
   return Boolean(jar.get(SESSION_COOKIE)?.value || jar.get(USER_COOKIE)?.value);
+};
+
+export type CurrentUser = {
+  email: string;
+  username: string;
+  bio: string | null;
+  image: string | null;
+};
+
+// Server-only fetch of the full current-user envelope via GET /api/user
+// — used by the settings page (#21) to prefill the form with every
+// editable field. Returns null when the session cookie is missing or
+// rejected; the caller redirects to /login in that case.
+export const getCurrentUser = async (): Promise<CurrentUser | null> => {
+  const token = await readSessionCookie();
+  if (!token) return null;
+  const res = await apiFetch<{ user: CurrentUser & { token: string } }>(
+    "/api/user",
+    { cookie: `${SESSION_COOKIE}=${token}` },
+  );
+  if (!res.ok) return null;
+  const { email, username, bio, image } = res.data.user;
+  return { email, username, bio, image };
 };
 
 // Presentation-only hint: who is the viewer, per the readable user
