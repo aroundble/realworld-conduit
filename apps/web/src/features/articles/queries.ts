@@ -48,6 +48,12 @@ export type ArticleListPayload = {
 // a narrow, typed surface — future callers set their own subset.
 export type ListArticleFilters = {
   tag?: string;
+  // Filter by article author (e.g. /profile/jake tab "My Articles").
+  author?: string;
+  // Filter by users who've favorited the article (e.g. /profile/jake
+  // tab "Favorited Articles"). Per the RealWorld spec both filters
+  // ride the same GET /api/articles endpoint.
+  favorited?: string;
   limit?: number;
   offset?: number;
 };
@@ -76,6 +82,8 @@ export const listArticles = async (
 ): Promise<ArticleListPayload> => {
   const qs = toQueryString({
     tag: filters.tag,
+    author: filters.author,
+    favorited: filters.favorited,
     limit: filters.limit,
     offset: filters.offset,
   });
