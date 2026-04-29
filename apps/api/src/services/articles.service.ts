@@ -206,6 +206,10 @@ export type UpdateArticleInput = {
   title?: string;
   description?: string;
   body?: string;
+  // undefined = leave existing tags unchanged; present (including []) =
+  // replace the tag set with the provided list (empty clears all).
+  // Per RealWorld spec / #68.
+  tagList?: string[];
 };
 
 // Adapted from gothinkster/node-express-prisma-v1-official-app @ 6ac99ea5
@@ -245,6 +249,20 @@ export const updateArticle = async (
   }
   if (input.description !== undefined) data.description = input.description;
   if (input.body !== undefined) data.body = input.body;
+  if (input.tagList !== undefined) {
+    // `set: []` detaches every current tag, then `connectOrCreate`
+    // reattaches whatever's in the new list. Empty array → tags fully
+    // cleared; non-empty → tag set replaced atomically with the
+    // supplied names. Per #68's AC — the spec treats tagList
+    // present-with-[] as "clear" and omitted as "no change".
+    data.tagList = {
+      set: [],
+      connectOrCreate: input.tagList.map((name) => ({
+        where: { name },
+        create: { name },
+      })),
+    };
+  }
 
   const updated = await prisma.article.update({
     where: { id: existing.id },
