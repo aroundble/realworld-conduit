@@ -566,3 +566,71 @@ footer {
   color: var(--conduit-text);
   border-color: var(--conduit-text-muted);
 }
+
+/* ── Error state (#147) ──────────────────────────────────────
+ * Shared visual for the ErrorState component. Used by every
+ * per-segment error.tsx segment boundary + global-error.tsx.
+ * role=alert + assertive live region; screen readers announce
+ * the message as an interrupt rather than a polite status.
+ */
+.error-state {
+  max-width: 640px;
+  margin: 3rem auto;
+  padding: 2rem 1.5rem;
+  text-align: center;
+  background: var(--conduit-surface, #ffffff);
+  border: 1px solid var(--conduit-border, rgba(0, 0, 0, 0.1));
+  border-radius: 0.5rem;
+}
+
+.error-state-title {
+  margin: 0 0 0.5rem 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--conduit-text, #373a3c);
+}
+
+.error-state-body {
+  margin: 0 0 1.25rem 0;
+  color: var(--conduit-text-muted, #55595c);
+  line-height: 1.5;
+}
+
+.error-state-digest {
+  margin: 0 0 1.25rem 0;
+  font-size: 0.8rem;
+  color: var(--conduit-text-muted, #55595c);
+}
+
+.error-state-digest code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  background: rgba(0, 0, 0, 0.04);
+  padding: 0.1rem 0.35rem;
+  border-radius: 0.25rem;
+}
+
+[data-theme="dark"] .error-state-digest code {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.error-state-actions {
+  display: inline-flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+}
+
+.error-state-actions .btn-sm {
+  padding: 0.4rem 1rem;
+  font-size: 0.9rem;
+  border-radius: 0.3rem;
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+
+.error-state-home-link {
+  color: var(--conduit-green);
+  text-decoration: underline;
+  font-size: 0.9rem;
+}
