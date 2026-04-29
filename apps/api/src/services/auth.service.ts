@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import bcrypt from "bcryptjs";
 import jwt, { type SignOptions } from "jsonwebtoken";
 import type { User } from "@prisma/client";
@@ -40,6 +41,11 @@ const signToken = (user: Pick<User, "id" | "email" | "username">): string => {
   const options: SignOptions = {
     algorithm: "HS256",
     expiresIn: config.jwtTtlSeconds,
+    // jti makes every issued token unique even when two signs happen
+    // within the same `iat` second — load-bearing for the #6 AC that
+    // a password-change response returns a *different* JWT from the
+    // one on the previous cookie. Also a hook for future revocation.
+    jwtid: randomUUID(),
   };
   return jwt.sign(payload, config.jwtSecret, options);
 };
