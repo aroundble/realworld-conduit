@@ -178,3 +178,11 @@ process env; nothing hardcoded in `src/`. Portability checklist
 - **React 19 note**: `ThemeToggle` uses `useSyncExternalStore` rather than `useEffect(() => setMounted(true))` to satisfy the "no setState in effect" lint rule. Same semantic, different phrasing.
 - **`suppressHydrationWarning` on `<html>`**: next-themes mutates the element before React hydrates; scope is the narrow `<html>` element only.
 - **Reference**: `docs/theming.md` — palette table, contrast discipline, how-to for new themed surfaces.
+
+## Addendum — HTTP caching (2026-04-29, #151)
+
+- **Policy driven by a central middleware** (`apps/api/src/middleware/cache-headers.ts`) rather than per-route. Inspects `c.req.routePath` + method + auth state (cookie OR bearer) to pick `public, max-age=..., stale-while-revalidate=...` / `private, no-cache` / `no-store`.
+- **Gate**: `API_CACHE_ENABLED=1`. Off in local dev so Bruno conformance's byte-exact assertions aren't affected by 304 short-circuits; production compose sets the flag.
+- **ETag**: SHA-1 of the response body, strong validator (double-quoted). Only on cacheable GET/HEAD with status 200 — authenticated + mutation responses skip it.
+- **Per-class TTLs**: `/api/tags` 5 min (slowest-changing), `/api/profiles/:username` 2 min, `/api/articles` + `/api/articles/:slug` 1 min, `/api/articles?q=` 30 s. See `docs/caching.md` for the full table.
+- **Reference**: `docs/caching.md`.
