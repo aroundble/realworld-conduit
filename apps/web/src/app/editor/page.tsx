@@ -1,11 +1,24 @@
-import { ComingSoon } from "@/components/ComingSoon";
+import { redirect } from "next/navigation";
+import { EditorForm } from "@/components/editor/EditorForm";
+import { isAuthenticated } from "@/features/auth/session";
 
 export const metadata = { title: "New Article — Conduit" };
 
-export default function EditorPage() {
+// Create-article editor (#19). Anon viewers → /login?redirect=/editor.
+export default async function NewEditorPage() {
+  const authed = await isAuthenticated();
+  if (!authed) {
+    redirect("/login?redirect=/editor");
+  }
   return (
-    <ComingSoon title="New Article">
-      <p>The article editor with tag-pill input lands in issue #19.</p>
-    </ComingSoon>
+    <div className="editor-page">
+      <div className="container page">
+        <div className="row">
+          <div className="col-md-10 offset-md-1 col-xs-12">
+            <EditorForm />
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
