@@ -40,16 +40,29 @@ test.describe("issue #14 — API GET /api/tags", () => {
     const api = await request.newContext({ baseURL: API_URL });
     await registerUser(api, jake);
 
-    // Namespace tags with `${id}` so the counts are deterministic even
-    // alongside other suites' articles. Three tags with 3/2/1 articles
-    // each — AC scenario 1's shape literally.
+    // Namespace tags with `${id}` so the counts stay comparable to
+    // other suites' seeds. All three tags need enough articles that
+    // they cannot be evicted from `/api/tags`'s top-20 slice by
+    // more-popular tags from prior spec runs — #72 fixed a
+    // regression where `t1` (1 article) fell out of the slice on a
+    // polluted DB. Counts: t3=7, t2=5, t1=3. Relative ordering
+    // (the AC's assertion) is unchanged.
     const t3 = `dragons-${id}`;
     const t2 = `training-${id}`;
     const t1 = `programming-${id}`;
 
-    await createArticleWithTags(api, `A1 ${id}`, [t3, t2, t1]);
-    await createArticleWithTags(api, `A2 ${id}`, [t3, t2]);
-    await createArticleWithTags(api, `A3 ${id}`, [t3]);
+    // t3 articles (count=7)
+    for (let i = 0; i < 7; i++) {
+      await createArticleWithTags(api, `A3-${i} ${id}`, [t3]);
+    }
+    // t2 articles (count=5)
+    for (let i = 0; i < 5; i++) {
+      await createArticleWithTags(api, `A2-${i} ${id}`, [t2]);
+    }
+    // t1 articles (count=3)
+    for (let i = 0; i < 3; i++) {
+      await createArticleWithTags(api, `A1-${i} ${id}`, [t1]);
+    }
 
     const anon = await request.newContext({ baseURL: API_URL });
     const res = await anon.get("/api/tags");
