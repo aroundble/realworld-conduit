@@ -1,9 +1,14 @@
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArticleList } from "@/components/article/ArticleList";
 import { ProfileBanner } from "@/components/profile/ProfileBanner";
-import { listArticles } from "@/features/articles/queries";
+import { ArticleListSkeleton } from "@/components/skeletons/ArticleListSkeleton";
+import {
+  listArticles,
+  type ArticleListPayload,
+} from "@/features/articles/queries";
 import {
   isAuthenticated,
   readCurrentUsername,
@@ -66,6 +71,13 @@ const parsePage = (raw: string | undefined): number => {
   return Number.isFinite(n) && n >= 1 ? n : 1;
 };
 
+// Test-only Suspense delay — see apps/web/src/app/page.tsx.
+const testSlowMs = (raw: string | undefined): number => {
+  if (process.env.CONDUIT_TEST_SLOW_SUSPENSE !== "1") return 0;
+  const n = Number.parseInt(raw ?? "0", 10);
+  return Number.isFinite(n) && n > 0 && n < 10_000 ? n : 0;
+};
+
 export default async function ProfilePage({
   params,
   searchParams,
@@ -78,6 +90,7 @@ export default async function ProfilePage({
   const tab = getString(sp.tab) === "favorited" ? "favorited" : "authored";
   const currentPage = parsePage(getString(sp.page));
   const offset = (currentPage - 1) * PAGE_SIZE;
+  const slowMs = testSlowMs(getString(sp.slow));
 
   const [profile, authed, viewerUsername] = await Promise.all([
     getProfile(username),
@@ -89,10 +102,11 @@ export default async function ProfilePage({
     notFound();
   }
 
-  // Articles for the selected tab. `author=` for "My Articles",
-  // `favorited=` for "Favorited Articles" — both reach the same
-  // /api/articles endpoint per spec.
-  const articles = await listArticles(
+  // Articles for the selected tab — kicked off immediately, streamed
+  // behind <Suspense> so the banner paints before this resolves.
+  // `author=` for "My Articles", `favorited=` for "Favorited Articles"
+  // — both reach the same /api/articles endpoint per spec.
+  const articlesPromise: Promise<ArticleListPayload> = listArticles(
     tab === "favorited"
       ? { favorited: profile.username, limit: PAGE_SIZE, offset }
       : { author: profile.username, limit: PAGE_SIZE, offset },
@@ -133,17 +147,47 @@ export default async function ProfilePage({
                 </li>
               </ul>
             </div>
-            <ArticleList
-              articles={articles.articles}
-              articlesCount={articles.articlesCount}
-              limit={PAGE_SIZE}
-              currentPage={currentPage}
-              pagePath={pagePath}
-              authed={authed}
-            />
+            <Suspense fallback={<ArticleListSkeleton />}>
+              <AsyncProfileArticles
+                articlesPromise={articlesPromise}
+                currentPage={currentPage}
+                pagePath={pagePath}
+                authed={authed}
+                slowMs={slowMs}
+              />
+            </Suspense>
           </div>
         </div>
       </div>
     </div>
   );
 }
+
+const AsyncProfileArticles = async ({
+  articlesPromise,
+  currentPage,
+  pagePath,
+  authed,
+  slowMs,
+}: {
+  articlesPromise: Promise<ArticleListPayload>;
+  currentPage: number;
+  pagePath: string;
+  authed: boolean;
+  slowMs: number;
+}) => {
+  if (slowMs > 0) {
+    await new Promise((r) => setTimeout(r, slowMs));
+  }
+  const articles = await articlesPromise;
+  return (
+    <ArticleList
+      articles={articles.articles}
+      articlesCount={articles.articlesCount}
+      limit={PAGE_SIZE}
+      currentPage={currentPage}
+      pagePath={pagePath}
+      authed={authed}
+    />
+  );
+};

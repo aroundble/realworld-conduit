@@ -1,6 +1,8 @@
+import { Suspense } from "react";
 import { ArticleList } from "@/components/article/ArticleList";
 import { FeedTabs, type FeedMode } from "@/components/FeedTabs";
 import { TagCloud } from "@/components/TagCloud";
+import { TagCloudSkeleton } from "@/components/skeletons/TagCloudSkeleton";
 import {
   feedArticles,
   listArticles,
@@ -35,6 +37,16 @@ const buildPagePath = (mode: FeedMode, tag: string | undefined): string => {
   return "/";
 };
 
+// When CONDUIT_TEST_SLOW_SUSPENSE=1 (set in the dev compose env), a
+// `?slow=<ms>` querystring inserts an artificial delay in the
+// Suspense-wrapped children. Used only by tests/e2e/specs/114 to
+// observe the streaming fallback deterministically. Ignored otherwise.
+const testSlowMs = (raw: string | undefined): number => {
+  if (process.env.CONDUIT_TEST_SLOW_SUSPENSE !== "1") return 0;
+  const n = Number.parseInt(raw ?? "0", 10);
+  return Number.isFinite(n) && n > 0 && n < 10_000 ? n : 0;
+};
+
 export default async function Home({
   searchParams,
 }: {
@@ -45,6 +57,7 @@ export default async function Home({
   const feedParam = getString(params.feed);
   const currentPage = parsePage(getString(params.page));
   const offset = (currentPage - 1) * PAGE_SIZE;
+  const slowMs = testSlowMs(getString(params.slow));
 
   const authed = await isAuthenticated();
   // Mode selection: a pinned tag wins over feed=you (clicking a tag
@@ -59,21 +72,22 @@ export default async function Home({
     mode = "global";
   }
 
-  // Load articles + tags in parallel. Empty list stays empty (scenario
-  // 7); any fetch failure bubbles up as a 500, which the Next.js
-  // default error boundary handles — we don't want the homepage to
-  // silently render a half-populated state.
-  let payload: ArticleListPayload;
-  if (mode === "you") {
-    payload = await feedArticles({ limit: PAGE_SIZE, offset });
-  } else {
-    payload = await listArticles({
-      tag: mode === "tag" ? tag : undefined,
-      limit: PAGE_SIZE,
-      offset,
-    });
-  }
-  const tagsPayload = await listTopTags();
+  // Articles + tags fetch in parallel. Articles stay on the critical
+  // path because the feed tabs' render depends on `payload` shape;
+  // tags stream separately through <Suspense> so a slow tags query
+  // (#14 tag-count aggregation) doesn't block the article list
+  // first-paint. Any fetch failure bubbles up as a 500 — the Next
+  // default error boundary handles it.
+  const articlesPromise: Promise<ArticleListPayload> =
+    mode === "you"
+      ? feedArticles({ limit: PAGE_SIZE, offset })
+      : listArticles({
+          tag: mode === "tag" ? tag : undefined,
+          limit: PAGE_SIZE,
+          offset,
+        });
+  const tagsPromise = listTopTags();
+  const payload = await articlesPromise;
 
   return (
     <div className="home-page">
@@ -102,10 +116,32 @@ export default async function Home({
             />
           </div>
           <div className="col-md-3">
-            <TagCloud tags={tagsPayload.tags} activeTag={tag} />
+            <Suspense fallback={<TagCloudSkeleton />}>
+              <AsyncTagCloud
+                tagsPromise={tagsPromise}
+                activeTag={tag}
+                slowMs={slowMs}
+              />
+            </Suspense>
           </div>
         </div>
       </div>
     </div>
   );
 }
+
+const AsyncTagCloud = async ({
+  tagsPromise,
+  activeTag,
+  slowMs,
+}: {
+  tagsPromise: Promise<{ tags: string[] }>;
+  activeTag: string | undefined;
+  slowMs: number;
+}) => {
+  if (slowMs > 0) {
+    await new Promise((r) => setTimeout(r, slowMs));
+  }
+  const tagsPayload = await tagsPromise;
+  return <TagCloud tags={tagsPayload.tags} activeTag={activeTag} />;
+};

@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -5,6 +6,7 @@ import { ArticleBody } from "@/components/article/ArticleBody";
 import { ArticleMeta } from "@/components/article/ArticleMeta";
 import { CommentList } from "@/components/comment/CommentList";
 import { CommentForm } from "@/components/comment/CommentForm";
+import { CommentsSkeleton } from "@/components/skeletons/CommentsSkeleton";
 import {
   getArticle,
   listComments,
@@ -59,27 +61,37 @@ export async function generateMetadata({
   };
 }
 
-// Article detail page (#18). RSC: fetches article + comments + viewer
-// state in parallel, renders banner + meta + body + tag list + comments
-// region. Interactive buttons (follow, favorite, delete, comment form /
-// delete-comment) are client components that wrap server actions so
-// the initial paint is fully SSR'd and SEO-friendly.
+// Article detail page (#18). RSC: fetches article + viewer state
+// up-front (needed for the banner + meta), then streams the comments
+// region independently via <Suspense>. #114 split the comments off
+// the critical path so the banner + body paint as soon as
+// `getArticle` resolves.
+
+// Test-only delay knob — see apps/web/src/app/page.tsx for the same
+// pattern. Gated on CONDUIT_TEST_SLOW_SUSPENSE=1 so production
+// deployments can never accept a `?slow` param.
+const testSlowMs = (raw: string | string[] | undefined): number => {
+  if (process.env.CONDUIT_TEST_SLOW_SUSPENSE !== "1") return 0;
+  const val = Array.isArray(raw) ? raw[0] : raw;
+  const n = Number.parseInt(val ?? "0", 10);
+  return Number.isFinite(n) && n > 0 && n < 10_000 ? n : 0;
+};
 
 export default async function ArticlePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string }>;
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const { slug } = await params;
+  const sp = await searchParams;
+  const slowMs = testSlowMs(sp.slow);
 
-  // Parallel fetches: the article + comments + viewer cookie read are
-  // independent, so don't serialize them. getArticle returns null on
-  // 404 so we can call notFound() for the correct Next.js 404 flow;
-  // listComments returns [] on 404, which is defensive — the article
-  // check already filters that case.
-  const [article, comments, authed, viewerUsername] = await Promise.all([
+  // Article + viewer state on the critical path — banner + meta
+  // can't render without them.
+  const [article, authed, viewerUsername] = await Promise.all([
     getArticle(slug),
-    listComments(slug),
     isAuthenticated(),
     readCurrentUsername(),
   ]);
@@ -87,6 +99,12 @@ export default async function ArticlePage({
   if (!article) {
     notFound();
   }
+
+  // Kick off comments immediately but don't await — hand the
+  // pending Promise into the <Suspense>-wrapped child so the
+  // parent render completes with the banner + body while comments
+  // stream in behind the skeleton.
+  const commentsPromise = listComments(article.slug);
 
   return (
     <div className="article-page">
@@ -116,12 +134,15 @@ export default async function ArticlePage({
 
         <div className="row">
           <div className="col-xs-12 col-md-8 offset-md-2">
-            <CommentsRegion
-              slug={article.slug}
-              comments={comments}
-              authed={authed}
-              viewerUsername={viewerUsername}
-            />
+            <Suspense fallback={<CommentsSkeleton />}>
+              <AsyncComments
+                slug={article.slug}
+                commentsPromise={commentsPromise}
+                authed={authed}
+                viewerUsername={viewerUsername}
+                slowMs={slowMs}
+              />
+            </Suspense>
           </div>
         </div>
       </div>
@@ -129,17 +150,23 @@ export default async function ArticlePage({
   );
 }
 
-const CommentsRegion = ({
+const AsyncComments = async ({
   slug,
-  comments,
+  commentsPromise,
   authed,
   viewerUsername,
+  slowMs,
 }: {
   slug: string;
-  comments: Comment[];
+  commentsPromise: Promise<Comment[]>;
   authed: boolean;
   viewerUsername: string | null;
+  slowMs: number;
 }) => {
+  if (slowMs > 0) {
+    await new Promise((r) => setTimeout(r, slowMs));
+  }
+  const comments = await commentsPromise;
   return (
     <section aria-label="Comments">
       <h2 className="sr-only">Comments</h2>
