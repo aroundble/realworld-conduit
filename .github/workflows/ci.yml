@@ -126,6 +126,27 @@ jobs:
           path: tests/api/results/**
           if-no-files-found: warn
 
+      - name: run bruno conformance
+        # Canonical RealWorld Bruno collection (151 .bru files, upstream
+        # SHA e75fef39). Gate is baseline-aware via
+        # tests/api/bruno-baseline.json — any new failure or any baseline
+        # entry that now passes is a regression. See issue #36 and the
+        # follow-up cluster issues for how the baseline shrinks to zero.
+        env:
+          # Match CI's compose defaults — dev-bootstrap writes API_HOST_PORT=3001
+          # here, while the local env file uses 3101 to avoid cross-worktree
+          # port collisions. Override the collection env's `host` var.
+          BRUNO_HOST: http://localhost:3001
+        run: pnpm test:conformance
+
+      - name: upload bruno conformance artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bruno-conformance-${{ github.event.pull_request.number || github.run_id }}
+          path: tests/api/results/**
+          if-no-files-found: warn
+
       - name: install playwright browsers
         # The runner already has Node + pnpm from the `install` job's tree;
         # we only need the browser binaries. --with-deps pulls the OS libs

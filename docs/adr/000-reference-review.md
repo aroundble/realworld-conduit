@@ -135,9 +135,39 @@ decision` block pointing to the entry below by section number.
 
 - **Adapt**: mutoe's CI quality pipeline — extend with Lighthouse CI (`@lhci/cli`) + axe-playwright + ESLint (next + jsx-a11y).
 
-### §18 — Spec conformance tests (RealWorld Postman/Newman)
+### §18 — Spec conformance tests (RealWorld Bruno)
 
-- **Absorb verbatim**: the canonical Postman collection from `gothinkster/realworld` repo (https://github.com/gothinkster/realworld/tree/main/api — will re-ingest at first consumption) → `tests/spec-conformance/realworld.postman_collection.json`.
+- **Absorb verbatim**: the canonical Bruno collection from
+  `gothinkster/realworld` at `specs/api/bruno/` → `tests/api/bruno/`
+  (SHA `e75fef39`, 151 `.bru` files across `articles/`, `auth/`,
+  `comments/`, `favorites/`, `feed/`, `pagination/`, `profiles/`,
+  `tags/`, `errors-*`). Runner: `@usebruno/cli` via
+  `pnpm test:conformance` → `scripts/run-bruno-conformance.sh`.
+- **Amendment (2026-04-29)**: original plan (and this ADR's earlier
+  text) was Postman + Newman. Upstream deleted the Postman collection
+  on 2026-02-14 (`d4cd282e` — "hurl: added checks for article
+  creation, bruno compat, **removed test in Postman**") and migrated
+  canonical conformance to Bruno + Hurl + OpenAPI. We followed
+  upstream to Bruno because "canonical conformance" should mean
+  *what upstream uses today*, not a legacy file pinned at an older
+  SHA. A Postman collection we maintained ourselves would drift vs.
+  the real spec. Hurl and OpenAPI are separate conformance axes —
+  out of scope for this ADR, file a refinement issue if we want them.
+- **Gate shape**: `tests/api/bruno-baseline.json` records the current
+  expected drift between our API and the spec. The gate fails on any
+  new failure *or* any baseline-listed path that now passes (stale
+  baseline). Follow-up issues drive each cluster (list-view body
+  exclusion, 401 body shape, duplicate-user 409 status, empty-string
+  nullable normalization, article-create empty-field validation,
+  taglist empty-array semantics, can't-be-blank validation ordering)
+  to zero; when the baseline is empty, flip `CONFORMANCE_STRICT=1`
+  permanently in CI so any spec failure blocks merge. The cluster
+  catalogue lives in the baseline JSON file.
+- **Smoke layer unchanged**: `#23`'s Newman smoke collection
+  (`tests/api/collections/healthz-smoke.postman_collection.json`)
+  stays — it's a 100ms gate against `/healthz` and doesn't overlap
+  with the full Bruno suite. Newman remains in `devDependencies`
+  solely for that smoke path.
 
 ## Warnings / caveats
 
