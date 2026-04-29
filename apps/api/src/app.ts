@@ -6,6 +6,7 @@ import { requestId, type RequestIdVars } from "./middleware/request-id.js";
 import { registerAuthRoutes } from "./routes/auth.js";
 import { registerHealthzRoute } from "./routes/healthz.js";
 import { registerInternalThrowRoute } from "./routes/internal-throw.js";
+import { registerProfileRoutes } from "./routes/profiles.js";
 
 export type AppEnv = { Variables: RequestIdVars };
 
@@ -21,6 +22,7 @@ export const createApp = (): OpenAPIHono<AppEnv> => {
 
   registerHealthzRoute(app);
   registerAuthRoutes(app);
+  registerProfileRoutes(app);
   registerInternalThrowRoute(app);
 
   app.doc("/docs/json", {
