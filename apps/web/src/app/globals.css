@@ -313,3 +313,35 @@ footer .attribution {
 .text-xs-center {
   text-align: center;
 }
+
+/* ── Loading skeletons (#114) ─────────────────────────────────
+ * Shimmer animation used by every placeholder in
+ * apps/web/src/components/skeletons/. Reduced-motion users
+ * opt out automatically via prefers-reduced-motion.
+ */
+@keyframes conduit-shimmer {
+  0% { background-position: -200px 0; }
+  100% { background-position: 200px 0; }
+}
+
+.skeleton-shimmer {
+  background-color: #eceeef;
+  background-image: linear-gradient(
+    90deg,
+    #eceeef 0%,
+    #f6f7f8 50%,
+    #eceeef 100%
+  );
+  background-size: 200px 100%;
+  background-repeat: no-repeat;
+  border-radius: 4px;
+  animation: conduit-shimmer 1.3s ease-in-out infinite;
+  vertical-align: middle;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-shimmer {
+    animation: none;
+    background-image: none;
+  }
+}

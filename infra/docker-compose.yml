@@ -78,6 +78,7 @@ services:
       API_URL: ${API_URL_INTERNAL:-http://api:3001}
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3001}
       NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-http://localhost:3000}
+      CONDUIT_TEST_SLOW_SUSPENSE: ${CONDUIT_TEST_SLOW_SUSPENSE:-}
     ports:
       - "${WEB_HOST_PORT:-3000}:3000"
     healthcheck:
