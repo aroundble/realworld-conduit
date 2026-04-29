@@ -5,21 +5,17 @@
   "totalRequests": 149,
   "knownFailing": [
     { "path": "articles/13-update-article-remove-all-tags-with-empty-array.bru", "cluster": "taglist-empty-array-semantics", "followUpIssue": "#68" },
-    { "path": "articles/14-verify-tags-were-actually-removed.bru", "cluster": "taglist-empty-array-semantics", "followUpIssue": "#68" },
-    { "path": "errors-auth/02-register-empty-email.bru", "cluster": "validation-cant-be-blank-ordering", "followUpIssue": "#65" },
-    { "path": "errors-auth/03-register-empty-password.bru", "cluster": "validation-cant-be-blank-ordering", "followUpIssue": "#65" },
-    { "path": "errors-auth/07-login-empty-email.bru", "cluster": "validation-cant-be-blank-ordering", "followUpIssue": "#65" }
+    { "path": "articles/14-verify-tags-were-actually-removed.bru", "cluster": "taglist-empty-array-semantics", "followUpIssue": "#68" }
   ],
   "clusters": {
-    "taglist-empty-array-semantics": "Upstream treats `{taglist: []}` on article PUT as 'clear all tags'. Our API rejects it with 422; decide semantics + fix update handler.",
-    "validation-cant-be-blank-ordering": "Empty-string inputs surface format errors ('is not a valid email', 'is too short') before the blank check. Upstream expects 'can't be blank' first.",
-    "duplicate-user-status-409": "Register duplicate username/email returns 422; upstream expects 409 Conflict. Swap status in apps/api/src/routes/auth.ts register handler."
+    "taglist-empty-array-semantics": "Upstream treats `{taglist: []}` on article PUT as 'clear all tags'. Our API rejects it with 422; decide semantics + fix update handler."
   },
   "resolvedClusters": {
     "401-body-shape": "Resolved by #62 (2026-04-29) — 13 paths across errors-articles/ errors-auth/ errors-comments/ errors-profiles/ now emit the canonical `{errors:{token:[\"is missing\"]}}` envelope; wrong-password emits `{errors:{credentials:[\"invalid\"]}}` per upstream.",
     "list-views-include-body": "Resolved by #63 (2026-04-29) — `GET /api/articles`, `GET /api/articles/feed`, and `favorited`-filtered list now omit `body` per spec. 9 paths removed from knownFailing.",
     "empty-string-nullable-normalization": "Resolved by #64 (2026-04-29) — PUT /api/user with `bio:\"\"` or `image:\"\"` now coerces to null via a z.preprocess layer on UpdateUserRequestSchema. 4 paths removed from knownFailing.",
     "duplicate-user-status-409": "Resolved by #66 (2026-04-29) — registerUser throws AuthError at status 409 on duplicate username/email (was 422). Update-user clashes stay 422 per the field-validation semantics there.",
-    "article-create-empty-field-validation": "Resolved by #67 (2026-04-29) — CreateArticleRequestSchema tightens description + body to .min(1, \"can't be blank\"). Create with empty description or body now returns 422 with the canonical envelope. 2 paths removed from knownFailing."
+    "article-create-empty-field-validation": "Resolved by #67 (2026-04-29) — CreateArticleRequestSchema tightens description + body to .min(1, \"can't be blank\"). Create with empty description or body now returns 422 with the canonical envelope. 2 paths removed from knownFailing.",
+    "validation-cant-be-blank-ordering": "Resolved by #65 (2026-04-29) — register + login schemas declare `.min(1, \"can't be blank\")` before any format/length rule; zod preserves declaration order in issues[], so `errors.<field>[0]` is the blank message. 3 paths removed from knownFailing."
   }
 }
