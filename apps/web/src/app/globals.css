@@ -187,3 +187,84 @@ footer .attribution {
   color: var(--conduit-green);
   margin-bottom: 1rem;
 }
+
+/* ── Auth pages (sign in / sign up) ────────────────────────── */
+
+.auth-page {
+  padding: 1.5rem 0;
+}
+
+.auth-page h1 {
+  font-size: 2.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.auth-page p {
+  margin-bottom: 1rem;
+}
+
+.auth-page .error-messages {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 1rem;
+  color: #b85c5c;
+  font-weight: 700;
+}
+
+.auth-page .error-messages li {
+  margin: 0;
+}
+
+.form-group {
+  border: 0;
+  padding: 0;
+  margin: 0 0 1rem;
+}
+
+.form-control,
+.form-control-lg {
+  display: block;
+  width: 100%;
+  padding: 0.75rem 1.25rem;
+  font-size: 1rem;
+  line-height: 1.5;
+  color: #55595c;
+  background-color: #ffffff;
+  background-image: none;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  border-radius: 0.3rem;
+}
+
+.form-control-lg {
+  padding: 1rem 1.25rem;
+  font-size: 1.25rem;
+}
+
+.btn-primary {
+  color: #ffffff;
+  background-color: var(--conduit-green);
+  border-color: var(--conduit-green);
+  padding: 0.5rem 1rem;
+  border-radius: 0.3rem;
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+
+.btn-primary:hover,
+.btn-primary:focus {
+  background-color: var(--conduit-green-dark);
+  border-color: var(--conduit-green-dark);
+}
+
+.btn-lg {
+  padding: 0.75rem 1.5rem;
+  font-size: 1.25rem;
+}
+
+.pull-xs-right {
+  float: right;
+}
+
+.text-xs-center {
+  text-align: center;
+}
