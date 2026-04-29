@@ -708,3 +708,91 @@ select:focus-visible,
     transition: none !important;
   }
 }
+
+/* ── Keyboard-shortcut help modal (#160) ─────────────────────
+ * Backdrop + centered dialog. role="dialog" aria-modal, with a
+ * palette-aware surface. Close button styling reuses .btn-primary
+ * so it inherits the focus ring + palette from the rest of the
+ * app.
+ */
+.shortcut-help-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  padding: 1rem;
+}
+
+.shortcut-help-dialog {
+  background: var(--conduit-surface, #ffffff);
+  color: var(--conduit-text, #373a3c);
+  border-radius: 0.5rem;
+  padding: 1.5rem 1.75rem;
+  max-width: 420px;
+  width: 100%;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.25);
+}
+
+.shortcut-help-title {
+  margin: 0 0 1rem 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.shortcut-help-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 1.25rem;
+}
+
+.shortcut-help-table td {
+  padding: 0.45rem 0.25rem;
+  font-size: 0.9rem;
+}
+
+.shortcut-help-keys {
+  white-space: nowrap;
+  width: 1%;
+  padding-right: 1rem !important;
+}
+
+.shortcut-help-keys kbd {
+  display: inline-block;
+  padding: 0.1rem 0.5rem;
+  background: rgba(0, 0, 0, 0.08);
+  border: 1px solid var(--conduit-border, rgba(0, 0, 0, 0.15));
+  border-radius: 0.25rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85rem;
+}
+
+[data-theme="dark"] .shortcut-help-keys kbd {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.shortcut-help-desc {
+  color: var(--conduit-text-muted, #55595c);
+}
+
+.shortcut-help-actions {
+  text-align: right;
+}
+
+.shortcut-help-footer-link {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  color: var(--conduit-green);
+  text-decoration: underline;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.8rem;
+}
+
+.shortcut-help-footer-link:hover,
+.shortcut-help-footer-link:focus {
+  color: var(--conduit-green-dark);
+}

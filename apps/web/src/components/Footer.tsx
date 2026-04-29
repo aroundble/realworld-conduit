@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { KeyboardShortcutFooterLink } from "./KeyboardShortcutFooterLink";
 
 export const Footer = () => (
   <footer>
@@ -15,6 +16,10 @@ export const Footer = () => (
         {" "}
         See the{" "}
         <a href="https://realworld-docs.netlify.app/">RealWorld spec</a>.
+      </span>
+      <span className="attribution">
+        {" "}
+        <KeyboardShortcutFooterLink />
       </span>
     </div>
   </footer>
