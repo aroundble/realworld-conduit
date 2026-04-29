@@ -68,6 +68,10 @@ services:
       # headers (nosniff / DENY / Referrer-Policy / Permissions-
       # Policy) ship unconditionally.
       ENFORCE_HSTS: ${ENFORCE_HSTS:-}
+      # /metrics auth (#139). Empty in dev so local scraping works
+      # without a secret; production compose MUST set METRICS_TOKEN
+      # to a long random value or /metrics returns 401.
+      METRICS_TOKEN: ${METRICS_TOKEN:-}
     ports:
       - "${API_HOST_PORT:-3001}:3001"
     healthcheck:

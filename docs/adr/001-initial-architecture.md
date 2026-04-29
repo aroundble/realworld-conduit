@@ -159,3 +159,12 @@ process env; nothing hardcoded in `src/`. Portability checklist
 - **Build-time bake**: CSP + HSTS are resolved at `next build` time and written into `routes-manifest.json`; `NEXT_PUBLIC_API_URL` and `ENFORCE_HSTS` must therefore flow through as Docker build args per deploy target. `infra/docker-compose.yml` passes both from `.env`.
 - **HSTS in local dev**: forbidden. A 2-year preload pin on `localhost` locks the browser into HTTPS-only for every other dev server on the host. All local envs keep `ENFORCE_HSTS` unset.
 - **Reference**: `docs/security-headers.md` — full table, tuning guide, verification commands.
+
+## Addendum — Metrics + observability (2026-04-29, #139)
+
+- **Library**: `prom-client` (Node canonical, MIT). A dedicated `metricsRegistry` holds our metrics so tests can flush state without clobbering the global default.
+- **Families**: `http_requests_total` (counter), `http_request_duration_seconds` (histogram), `http_requests_inflight` (gauge), `rate_limit_rejections_total` (counter), `auth_failures_total` (counter), `db_pool_connections` (gauge, placeholder until Prisma exposes pool stats). Plus `prom-client`'s default process/node collectors.
+- **Cardinality**: the `route` label is Hono's `c.req.routePath` (matched pattern), never the interpolated URL. All other labels come from a bounded enum set (method, status, bucket name, failure reason).
+- **Placement**: `metricsMiddleware` runs after request-id + logger so the router has resolved the route pattern before we label. Skips `/metrics` itself to avoid scraper-feedback noise.
+- **Auth**: dev/test = open; production requires `X-Metrics-Token: $METRICS_TOKEN` header. Empty `METRICS_TOKEN` in production fails closed.
+- **Reference**: `docs/observability.md` — family table, Grafana panel shapes, alerting suggestions.
