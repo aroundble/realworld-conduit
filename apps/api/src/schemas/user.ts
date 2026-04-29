@@ -14,12 +14,21 @@ export const UserResponseSchema = z
   .object({ user: UserSchema })
   .openapi("UserResponse");
 
+// Blank check (`.min(1, "can't be blank")`) declared before any
+// format / length check so zod's issue list has blank first — our
+// spec422Hook surfaces `errors.<field>[0]`, which is what upstream's
+// Bruno `errors-auth/02` + `03` + `07` assert as "can't be blank"
+// on empty input. See #65.
 export const RegisterRequestSchema = z
   .object({
     user: z.object({
       username: z.string().min(1, "can't be blank").max(100),
-      email: z.string().email("is not a valid email"),
-      password: z.string().min(8, "is too short (minimum is 8 characters)").max(200),
+      email: z.string().min(1, "can't be blank").email("is not a valid email"),
+      password: z
+        .string()
+        .min(1, "can't be blank")
+        .min(8, "is too short (minimum is 8 characters)")
+        .max(200),
     }),
   })
   .openapi("RegisterRequest");
@@ -27,7 +36,7 @@ export const RegisterRequestSchema = z
 export const LoginRequestSchema = z
   .object({
     user: z.object({
-      email: z.string().email("is not a valid email"),
+      email: z.string().min(1, "can't be blank").email("is not a valid email"),
       password: z.string().min(1, "can't be blank"),
     }),
   })
