@@ -3,6 +3,7 @@ import { Scalar } from "@scalar/hono-api-reference";
 import type { Context } from "hono";
 import type { ZodIssue } from "zod";
 import { globalBodyLimit } from "./middleware/body-limit.js";
+import { cacheHeaders } from "./middleware/cache-headers.js";
 import { corsMiddleware } from "./middleware/cors.js";
 import { errorHandler } from "./middleware/error.js";
 import { requestLogger } from "./middleware/logger.js";
@@ -55,6 +56,11 @@ export const createApp = (): OpenAPIHono<AppEnv> => {
   app.use("*", requestId());
   app.use("*", requestLogger());
   app.use("*", corsMiddleware());
+  // HTTP cache headers (#151). Sits near the outer edge so every
+  // response (success + validator 4xx) gets the Cache-Control +
+  // Vary pass. Gated on API_CACHE_ENABLED so local dev + Bruno
+  // conformance runs aren't perturbed by 304 short-circuits.
+  app.use("*", cacheHeaders());
   // Prometheus metrics (#139). Runs after request-id so the
   // Hono router has resolved `c.req.routePath` by the time we
   // label our histograms — that's how we keep cardinality bounded

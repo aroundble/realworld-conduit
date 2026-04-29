@@ -72,6 +72,11 @@ services:
       # without a secret; production compose MUST set METRICS_TOKEN
       # to a long random value or /metrics returns 401.
       METRICS_TOKEN: ${METRICS_TOKEN:-}
+      # HTTP cache headers (#151). OFF in dev/test by default so
+      # Bruno conformance + smoke specs don't hit 304s. Production
+      # compose sets API_CACHE_ENABLED=1 so CDN / browser / reverse
+      # proxies honor the Cache-Control + ETag policy.
+      API_CACHE_ENABLED: ${API_CACHE_ENABLED:-}
     ports:
       - "${API_HOST_PORT:-3001}:3001"
     healthcheck:
