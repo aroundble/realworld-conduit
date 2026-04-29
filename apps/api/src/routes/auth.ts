@@ -56,6 +56,10 @@ const registerRoute = createRoute({
       description: "Created",
       content: { "application/json": { schema: UserResponseSchema } },
     },
+    409: {
+      description: "Conflict — username or email already taken",
+      content: { "application/json": { schema: ErrorResponseSchema } },
+    },
     422: {
       description: "Unprocessable entity",
       content: { "application/json": { schema: ErrorResponseSchema } },
@@ -145,7 +149,14 @@ export const registerAuthRoutes = (app: OpenAPIHono<AppEnv>): void => {
       c.header("Authorization", `Token ${envelope.token}`);
       return c.json({ user: envelope }, 201);
     } catch (err) {
-      if (err instanceof AuthError) {
+      // registerUser today only throws 409 (duplicate). Narrow the
+      // switch so the OpenAPI route's response union (201 | 409 |
+      // 422) stays exact — any future 401-throwing path would be a
+      // bug in the register handler anyway.
+      if (err instanceof AuthError && err.status === 409) {
+        return c.json(jsonError(err.field, err.detail), 409);
+      }
+      if (err instanceof AuthError && err.status === 422) {
         return c.json(jsonError(err.field, err.detail), 422);
       }
       throw err;
