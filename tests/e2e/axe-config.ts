@@ -62,16 +62,8 @@ const sharedRuleOverrides: Record<
   string,
   { enabled: false; why: string }
 > = {
-  // Canonical RealWorld palette (navbar green #5cb85c, muted nav-link
-  // grey #b3b3b3, white-on-green banner) fails WCAG AA contrast on
-  // every page surface — 10–11 violations per page from shared chrome.
-  // Tracked in #90; allowlist while the palette gets tuned to an
-  // AA-compliant variant without breaking visual parity with the
-  // RealWorld reference. Remove this entry once #90 lands.
-  "color-contrast": {
-    enabled: false,
-    why: "Tracked in #90 — RealWorld canonical palette below AA",
-  },
+  // No overrides active. #90 closed the color-contrast allowlist
+  // when the palette was tuned to AA-compliant variants.
 };
 
 /**
