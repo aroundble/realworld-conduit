@@ -1,4 +1,11 @@
+import type { Metadata } from "next";
 import Link from "next/link";
+
+// See article/[slug]/not-found.tsx for the rationale — same pattern,
+// applied to the profile 404 path (#113 AC scenario 4).
+export const metadata: Metadata = {
+  title: "Profile not found — Conduit",
+};
 
 export default function NotFound() {
   return (

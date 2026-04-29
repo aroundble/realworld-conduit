@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArticleList } from "@/components/article/ArticleList";
@@ -8,8 +9,48 @@ import {
   readCurrentUsername,
 } from "@/features/auth/session";
 import { getProfile } from "@/features/profiles/queries";
+import { siteUrl } from "@/lib/site";
 
-export const metadata = { title: "Profile — Conduit" };
+// Dynamic share-preview metadata (#113). See the article page's
+// generateMetadata for the broader rationale.
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ username: string }>;
+}): Promise<Metadata> {
+  const { username } = await params;
+  const profile = await getProfile(username);
+
+  if (!profile) {
+    return { title: "Profile not found — Conduit" };
+  }
+
+  // Fallback copy when the user hasn't written a bio — keeps the
+  // preview card informative instead of empty.
+  const description =
+    profile.bio && profile.bio.trim().length > 0
+      ? profile.bio
+      : `View ${profile.username}'s articles on Conduit`;
+  const url = `${siteUrl()}/profile/${encodeURIComponent(profile.username)}`;
+
+  return {
+    title: `${profile.username} — Conduit`,
+    description,
+    openGraph: {
+      title: profile.username,
+      description,
+      type: "profile",
+      url,
+      ...(profile.image ? { images: [profile.image] } : {}),
+    },
+    twitter: {
+      card: "summary",
+      title: profile.username,
+      description,
+      ...(profile.image ? { images: [profile.image] } : {}),
+    },
+  };
+}
 
 const PAGE_SIZE = 20;
 
