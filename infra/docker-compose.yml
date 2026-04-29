@@ -62,6 +62,12 @@ services:
       # apps/api/src/middleware/body-limit.ts when these are unset.
       API_BODY_LIMIT_GLOBAL_KB: ${API_BODY_LIMIT_GLOBAL_KB:-}
       API_BODY_LIMIT_ARTICLE_KB: ${API_BODY_LIMIT_ARTICLE_KB:-}
+      # Security headers (#124). Off for local HTTP; any env that
+      # terminates TLS (staging/prod) sets ENFORCE_HSTS=true to
+      # emit the 2-year HSTS preload header. The other baseline
+      # headers (nosniff / DENY / Referrer-Policy / Permissions-
+      # Policy) ship unconditionally.
+      ENFORCE_HSTS: ${ENFORCE_HSTS:-}
     ports:
       - "${API_HOST_PORT:-3001}:3001"
     healthcheck:
@@ -80,6 +86,13 @@ services:
     build:
       context: ..
       dockerfile: apps/web/Dockerfile
+      args:
+        # Must flow in at build time because next.config.ts's CSP
+        # `connect-src` + HSTS decision are baked into the static
+        # routes-manifest. Compose passes the same .env values as
+        # runtime environment.
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3001}
+        ENFORCE_HSTS: ${ENFORCE_HSTS:-}
     depends_on:
       api:
         condition: service_healthy
@@ -90,6 +103,11 @@ services:
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3001}
       NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-http://localhost:3000}
       CONDUIT_TEST_SLOW_SUSPENSE: ${CONDUIT_TEST_SLOW_SUSPENSE:-}
+      # Security headers (#124). Mirrors the API's flag — only cloud
+      # envs behind a TLS terminator set this; local dev runs on
+      # http:// and must not emit HSTS (would lock the browser into
+      # treating localhost as HTTPS-only).
+      ENFORCE_HSTS: ${ENFORCE_HSTS:-}
     ports:
       - "${WEB_HOST_PORT:-3000}:3000"
     healthcheck:
