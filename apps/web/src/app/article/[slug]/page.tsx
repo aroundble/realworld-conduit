@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArticleBody } from "@/components/article/ArticleBody";
@@ -13,8 +14,50 @@ import {
   isAuthenticated,
   readCurrentUsername,
 } from "@/features/auth/session";
+import { siteUrl } from "@/lib/site";
 
-export const metadata = { title: "Article — Conduit" };
+// Dynamic share-preview metadata (#113). When a link previewer
+// (Slack / Twitter / LinkedIn / Discord / iMessage) fetches the
+// article HTML, the OG + Twitter tags below drive the preview card
+// off the article's own title + description + author, not the
+// generic site chrome.
+//
+// 404 path: if the slug doesn't resolve, return a plain title with
+// no og:type=article so crawlers don't cache the 404 as a real
+// article preview (AC scenario 4).
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+  const article = await getArticle(slug);
+
+  if (!article) {
+    return { title: "Article not found — Conduit" };
+  }
+
+  const url = `${siteUrl()}/article/${encodeURIComponent(article.slug)}`;
+  const title = `${article.title} — Conduit`;
+
+  return {
+    title,
+    description: article.description,
+    openGraph: {
+      title: article.title,
+      description: article.description,
+      type: "article",
+      url,
+      ...(article.author.image ? { images: [article.author.image] } : {}),
+    },
+    twitter: {
+      card: "summary",
+      title: article.title,
+      description: article.description,
+      ...(article.author.image ? { images: [article.author.image] } : {}),
+    },
+  };
+}
 
 // Article detail page (#18). RSC: fetches article + comments + viewer
 // state in parallel, renders banner + meta + body + tag list + comments
