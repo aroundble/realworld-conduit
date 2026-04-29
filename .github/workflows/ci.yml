@@ -183,6 +183,41 @@ jobs:
         if: always()
         run: $COMPOSE down -v
 
+  openapi-drift:
+    # OpenAPI snapshot drift gate (#123). Runs the emit script and
+    # asserts the committed snapshot matches. If a route schema
+    # changes without refreshing docs/openapi-snapshot.json, this
+    # job fails and the PR needs a commit bumping the snapshot.
+    name: openapi drift (schema snapshot)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: install
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: enable corepack + pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@"${PNPM_VERSION}" --activate
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: install
+        run: pnpm install --frozen-lockfile=false
+
+      - name: emit openapi snapshot
+        run: pnpm run openapi:emit
+
+      - name: check drift
+        run: |
+          if ! git diff --exit-code docs/openapi-snapshot.json; then
+            echo "::error::docs/openapi-snapshot.json is out of date. Run \`pnpm openapi:emit\` locally and commit the result."
+            exit 1
+          fi
+
   rate-limit-spec:
     # Rate-limiting middleware regression gate (#116). Boots a dedicated
     # compose stack with RATE_LIMIT_ENABLED=1 and runs only spec 116 —
