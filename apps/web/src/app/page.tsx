@@ -130,6 +130,14 @@ export default async function Home({
               currentPage={currentPage}
               pagePath={buildPagePath(mode, tag, q)}
               authed={authed}
+              context={
+                mode === "you"
+                  ? "your-feed"
+                  : mode === "tag"
+                    ? "tag"
+                    : "global-feed"
+              }
+              tagLabel={mode === "tag" ? tag : undefined}
             />
           </div>
           <div className="col-md-3">

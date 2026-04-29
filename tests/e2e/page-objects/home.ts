@@ -144,7 +144,12 @@ export class HomePage {
   }
 
   async expectEmptyList(): Promise<void> {
-    await expect(this.previews).toContainText("No articles are here... yet.");
+    // Post-#127: empty states route through the shared EmptyState
+    // component with context-aware copy. Each context lands on a
+    // different first line (global-feed / your-feed / tag / profile),
+    // so match the stable empty-state role + container rather than a
+    // fixed copy string.
+    await expect(this.previews.getByRole("status")).toBeVisible();
   }
 
   async allPreviewTitles(): Promise<string[]> {
