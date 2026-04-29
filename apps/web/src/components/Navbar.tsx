@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import Link from "next/link";
+import { ThemeToggle } from "./ThemeToggle";
 
 // AUTH_COOKIE holds the username of the currently-signed-in user. Issue
 // #4 / #5 will populate it from a server action after a real login; for
@@ -39,6 +40,9 @@ export const Navbar = async () => {
             <Link className="nav-link" href="/">
               Home
             </Link>
+          </li>
+          <li className="nav-item">
+            <ThemeToggle />
           </li>
           {user ? (
             <>

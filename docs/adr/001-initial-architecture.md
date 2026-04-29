@@ -168,3 +168,13 @@ process env; nothing hardcoded in `src/`. Portability checklist
 - **Placement**: `metricsMiddleware` runs after request-id + logger so the router has resolved the route pattern before we label. Skips `/metrics` itself to avoid scraper-feedback noise.
 - **Auth**: dev/test = open; production requires `X-Metrics-Token: $METRICS_TOKEN` header. Empty `METRICS_TOKEN` in production fails closed.
 - **Reference**: `docs/observability.md` — family table, Grafana panel shapes, alerting suggestions.
+
+## Addendum — Theming / dark mode (2026-04-29, #136)
+
+- **Library**: `next-themes` (MIT, ~2KB gzipped). SSR-safe; injects an inline `<head>` script that sets `data-theme` on `<html>` before first paint, which is what defeats FOUC.
+- **Attribute strategy**: `data-theme="light"` / `"dark"`. Chosen over `class`-based so `[data-theme="dark"]` CSS selectors are unambiguous.
+- **Storage key**: `conduit-theme` with values `"system"` / `"light"` / `"dark"`. User cycles via the nav `ThemeToggle`.
+- **Palette**: CSS variables on `:root` (light defaults) + `[data-theme="dark"]` override block. Both palettes clear WCAG AA 4.5:1 on every surface, verified by axe in spec 136 scenarios 5 + 6.
+- **React 19 note**: `ThemeToggle` uses `useSyncExternalStore` rather than `useEffect(() => setMounted(true))` to satisfy the "no setState in effect" lint rule. Same semantic, different phrasing.
+- **`suppressHydrationWarning` on `<html>`**: next-themes mutates the element before React hydrates; scope is the narrow `<html>` element only.
+- **Reference**: `docs/theming.md` — palette table, contrast discipline, how-to for new themed surfaces.
