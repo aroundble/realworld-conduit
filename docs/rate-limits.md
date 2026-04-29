@@ -1,4 +1,11 @@
-# Rate limiting (#116)
+# Rate + body-size limits (#116, #126)
+
+The API has two reliability primitives that run before any route
+handler: per-bucket rate limits (#116) and per-request body-size
+caps (#126). Both are DoS shields; together they bound the worst-
+case cost a misbehaving client can impose on the server.
+
+## Rate limiting (#116)
 
 Per-bucket fixed-window counter on every write endpoint. The goal is a
 reliability floor — a misbehaving client can't exhaust DB connections
@@ -97,3 +104,58 @@ rotate. A future cron can `DELETE FROM "RateLimit" WHERE "updatedAt"
 < NOW() - INTERVAL '1 day'`. Not wired yet — row volume is low
 enough that startup migration doesn't need to VACUUM. File an
 issue when volume suggests otherwise.
+
+## Body-size limits (#126)
+
+A client cannot make the API allocate multi-megabyte buffers just
+by posting a large body. Two tiers:
+
+| Scope | Env | Default | Applies to |
+|---|---|---|---|
+| Global floor | `API_BODY_LIMIT_GLOBAL_KB` | 1024 (1 MB) | Every mutating request (POST/PUT/PATCH/DELETE with body) |
+| Per-endpoint | `API_BODY_LIMIT_ARTICLE_KB` | 100 | `POST /api/articles`, `PUT /api/articles/:slug` |
+
+Implementation wraps `hono/body-limit`. See
+`apps/api/src/middleware/body-limit.ts`. The global cap is wired
+in `apps/api/src/app.ts` via `app.use("*", globalBodyLimit())`;
+the per-endpoint cap sits on the article create/update paths
+before the rate-limit middleware so an oversized request
+short-circuits with 413 without consuming from the write bucket.
+
+### 413 response shape
+
+```json
+{ "errors": { "body": ["payload too large, max 100KB"] } }
+```
+
+The `errors.body[0]` message echoes the effective cap in KB so
+clients can surface a useful error. Status is 413. No
+`Retry-After` — this isn't transient; the client needs to resend
+with a smaller body.
+
+### Why two tiers?
+
+- The 1 MB global floor catches the DoS axis — a drive-by that
+  posts `{"x": "A".repeat(20_000_000)}` to any endpoint is
+  rejected before Node allocates the string.
+- The 100 KB article cap is a business ceiling — article body is
+  the largest *legitimate* payload (long-form Markdown) and
+  100 KB ≈ 50 pages of prose is an order of magnitude above any
+  realistic post. Per-field zod caps (title.max(300),
+  body.max(50_000)) remain authoritative for validation errors
+  and surface as 422 with the usual envelope.
+
+### Interaction with rate limiting
+
+Body-limit runs before rate-limit on the article write routes.
+Consequence: an oversized POST returns 413 and does **not**
+consume from the write bucket. The ordering is deliberate — we
+want clients to fix their payload and retry immediately, not to
+also get rate-limited because their app is buggy.
+
+### Disable knob
+
+None. Body-limit is always on; the defaults are safe for dev,
+CI, and production. The env vars exist only for per-env tuning
+(e.g. bumping the article cap to 200 KB for a future long-form
+demo).

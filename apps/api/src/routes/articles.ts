@@ -14,6 +14,7 @@ import {
   updateArticle,
 } from "../services/articles.service.js";
 import { optionalAuth, requireAuth, type UserVars } from "../middleware/jwt-cookie.js";
+import { articleBodyLimit } from "../middleware/body-limit.js";
 import { rateLimit } from "../middleware/rate-limit.js";
 import { ErrorResponseSchema } from "../schemas/user.js";
 import {
@@ -326,6 +327,13 @@ export const registerArticleRoutes = (app: OpenAPIHono<AppEnv>): void => {
     return c.json(result, 200);
   });
 
+  // Per-endpoint body-size cap (#126) on POST — article body is the
+  // largest legitimate payload and still has an obvious ceiling
+  // (API_BODY_LIMIT_ARTICLE_KB, default 100KB). Registered before
+  // the rate-limit middleware so an oversized request short-circuits
+  // with 413 without consuming from the write bucket.
+  authed.use(createArticleRoute.getRoutingPath(), articleBodyLimit());
+
   // Article-write throttle (#116) — per-user, covers POST on the
   // collection path.
   authed.use(
@@ -377,6 +385,12 @@ export const registerArticleRoutes = (app: OpenAPIHono<AppEnv>): void => {
   //
   // Rate-limit middleware uses the same trick: `methods: [PUT, DELETE]`
   // so anonymous + authed GETs pass untouched.
+  // Per-endpoint body-size cap (#126) on PUT only — DELETE has no
+  // body so it's a no-op there; hono/body-limit short-circuits when
+  // c.req.raw.body is null. Kept on the same path so PUT /slug is
+  // bounded identically to POST /articles.
+  authed.use(updateArticleRoute.getRoutingPath(), articleBodyLimit());
+
   authed.use(
     updateArticleRoute.getRoutingPath(),
     rateLimit({
