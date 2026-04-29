@@ -1,6 +1,10 @@
 import type { Context } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { logger } from "../logger.js";
+import { AuthError } from "../services/auth.service.js";
+import { COOKIE_NAME } from "./jwt-cookie.js";
+import { deleteCookie } from "hono/cookie";
+import { config } from "../config.js";
 import type { RequestIdVars } from "./request-id.js";
 
 // Spec-shaped error envelope per RealWorld: {"errors": {"body": [...]}}.
@@ -11,6 +15,20 @@ export const errorHandler = (
   err: Error,
   c: Context<{ Variables: RequestIdVars }>,
 ) => {
+  if (err instanceof AuthError) {
+    // Missing/invalid/expired session: clear the stale cookie on 401 so
+    // the browser doesn't keep resending it on every navigation (the
+    // expired-token scenario in issue #5's AC).
+    if (err.status === 401) {
+      deleteCookie(c, COOKIE_NAME, {
+        path: "/",
+        domain: config.cookieDomain,
+        secure: config.cookieSecure,
+      });
+    }
+    return c.json({ errors: { [err.field]: [err.detail] } }, err.status);
+  }
+
   if (err instanceof HTTPException) {
     const response = err.getResponse();
     if (response.headers.get("content-type")?.includes("application/json")) {

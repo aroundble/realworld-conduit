@@ -6,10 +6,17 @@ const required = (name: string, fallback?: string): string => {
   return value;
 };
 
+const nodeEnv = process.env.NODE_ENV ?? "development";
+
 export const config = {
-  nodeEnv: process.env.NODE_ENV ?? "development",
+  nodeEnv,
   port: Number.parseInt(required("API_PORT", "3001"), 10),
   host: required("API_HOST", "0.0.0.0"),
   logLevel: process.env.LOG_LEVEL ?? "info",
   webUrl: required("WEB_URL", "http://localhost:3000"),
+  jwtSecret: required("JWT_SECRET", nodeEnv === "production" ? undefined : "dev-only-jwt-secret-do-not-use-in-prod"),
+  jwtTtlSeconds: Number.parseInt(process.env.JWT_TTL_SECONDS ?? "604800", 10),
+  bcryptCost: Number.parseInt(process.env.BCRYPT_COST ?? "10", 10),
+  cookieDomain: process.env.COOKIE_DOMAIN ?? "localhost",
+  cookieSecure: (process.env.COOKIE_SECURE ?? "false").toLowerCase() === "true",
 } as const;
