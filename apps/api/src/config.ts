@@ -20,4 +20,6 @@ export const config = {
   bcryptCost: Number.parseInt(process.env.BCRYPT_COST ?? "10", 10),
   cookieDomain: process.env.COOKIE_DOMAIN ?? "localhost",
   cookieSecure: (process.env.COOKIE_SECURE ?? "false").toLowerCase() === "true",
+  articleListDefaultLimit: Number.parseInt(process.env.ARTICLE_LIST_DEFAULT_LIMIT ?? "20", 10),
+  articleListMaxLimit: Number.parseInt(process.env.ARTICLE_LIST_MAX_LIMIT ?? "100", 10),
 } as const;
