@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { runAxe } from "../axe-config";
 import { mkdir } from "node:fs/promises";
 
 // BDD coverage for issue #16: register + login pages backed by Next.js
@@ -245,4 +246,11 @@ test.describe("issue #16 — web register / login", () => {
       path: `${SCREENSHOT_DIR}/scenario-7-already-authed.png`,
     });
   });
+});
+
+test("axe a11y gate on auth routes (#87)", async ({ page }) => {
+  for (const path of ["/login", "/register"]) {
+    await page.goto(path);
+    await runAxe(page);
+  }
 });

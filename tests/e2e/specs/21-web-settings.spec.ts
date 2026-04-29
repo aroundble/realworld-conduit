@@ -4,6 +4,7 @@ import {
   test,
   type BrowserContext,
 } from "@playwright/test";
+import { runAxe } from "../axe-config";
 
 // BDD coverage for issue #21: settings page (#21).
 // Six scenarios matching the AC block.
@@ -204,4 +205,14 @@ test.describe("issue #21 — settings page", () => {
     // Final status after redirect is 200 (the login page).
     expect(res?.status()).toBe(200);
   });
+});
+
+test("axe a11y gate on settings page (#87)", async ({ page, context }) => {
+  const id = uniq();
+  const jake = `jake-${id}`;
+  const api = await apiContext();
+  const session = await registerUser(api, jake);
+  await primeSession(context, session, jake);
+  await page.goto(`${WEB_URL}/settings`);
+  await runAxe(page);
 });

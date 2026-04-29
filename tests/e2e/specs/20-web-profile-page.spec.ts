@@ -4,6 +4,7 @@ import {
   test,
   type BrowserContext,
 } from "@playwright/test";
+import { runAxe } from "../axe-config";
 
 // BDD coverage for issue #20: profile page.
 // Five AC scenarios.
@@ -197,4 +198,13 @@ test.describe("issue #20 — profile page", () => {
       "No articles are here... yet.",
     );
   });
+});
+
+test("axe a11y gate on profile page (#87)", async ({ page }) => {
+  const id = uniq();
+  const jake = `jake-${id}`;
+  const api = await apiContext();
+  await registerUser(api, jake);
+  await page.goto(`${WEB_URL}/profile/${jake}`);
+  await runAxe(page);
 });

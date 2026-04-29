@@ -28,6 +28,8 @@
     "@playwright/test": "1.59.1",
     "@size-limit/file": "12.1.0",
     "@usebruno/cli": "3.3.0",
+    "axe-core": "4.11.4",
+    "axe-playwright": "2.2.2",
     "newman": "6.2.2",
     "size-limit": "12.1.0",
     "typescript": "5.9.3"

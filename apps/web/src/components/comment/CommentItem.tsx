@@ -26,21 +26,22 @@ export const CommentItem = ({ slug, comment, viewerUsername }: Props) => {
         <p className="card-text">{comment.body}</p>
       </div>
       <div className="card-footer">
-        <a
-          href={`/profile/${encodeURIComponent(comment.author.username)}`}
-          className="comment-author"
-        >
-          {comment.author.image ? (
-            // Tiny comment-author avatar; see established pattern in
-            // Navbar / ArticlePreview for plain <img> vs next/image.
-            // eslint-disable-next-line @next/next/no-img-element
+        {comment.author.image ? (
+          <a
+            href={`/profile/${encodeURIComponent(comment.author.username)}`}
+            className="comment-author"
+            aria-label={`${comment.author.username} profile`}
+          >
+            {/* Tiny comment-author avatar; see established pattern in
+                Navbar / ArticlePreview for plain <img> vs next/image. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={comment.author.image}
               alt={`${comment.author.username} avatar`}
               className="comment-author-img"
             />
-          ) : null}
-        </a>
+          </a>
+        ) : null}
         &nbsp;
         <a
           href={`/profile/${encodeURIComponent(comment.author.username)}`}

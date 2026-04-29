@@ -4,6 +4,7 @@ import {
   test,
   type BrowserContext,
 } from "@playwright/test";
+import { runAxe } from "../axe-config";
 
 // BDD coverage for issue #19: editor page (create + edit).
 
@@ -250,4 +251,14 @@ test.describe("issue #19 — editor", () => {
     await expect(page).toHaveURL(/\/login\?redirect=(%2F|\/)editor$/);
     expect(res?.status()).toBe(200);
   });
+});
+
+test("axe a11y gate on editor page (#87)", async ({ page, context }) => {
+  const id = uniq();
+  const jake = `jake-${id}`;
+  const api = await apiContext();
+  const session = await registerUser(api, jake);
+  await primeSession(context, session, jake);
+  await page.goto(`${WEB_URL}/editor`);
+  await runAxe(page);
 });
