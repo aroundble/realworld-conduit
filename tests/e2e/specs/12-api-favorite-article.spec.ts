@@ -1,4 +1,5 @@
-import { expect, request, test } from "@playwright/test";
+import { expect, test } from "@playwright/test";
+import { FavoritesApi } from "../page-objects/favorite";
 
 // BDD coverage for issue #12: POST + DELETE /api/articles/:slug/favorite.
 // Six of the seven AC scenarios run here; scenario 5 ("other article
@@ -8,102 +9,64 @@ import { expect, request, test } from "@playwright/test";
 // carries real favorited/favoritesCount) is exercised throughout.
 // When #10 merges its own spec can assert the list-envelope half with
 // one extra seed; no changes needed here.
-
-const API_URL =
-  process.env.API_URL ??
-  process.env.NEXT_PUBLIC_API_URL ??
-  "http://localhost:3101";
+//
+// #99 Phase 2 refactor: API helpers via `FavoritesApi`. Scenarios 6
+// (anon 401) + 7 (non-existent slug 404) use `rawFavorite`/
+// `rawUnfavorite` — the POP's wrappers assert 200.
 
 const uniq = () => `${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-
-const registerUser = async (
-  api: Awaited<ReturnType<typeof request.newContext>>,
-  username: string,
-) => {
-  const res = await api.post("/api/users", {
-    data: { user: { username, email: `${username}@jake.jake`, password: "jakejake" } },
-  });
-  expect(res.status()).toBe(201);
-};
-
-const createArticle = async (
-  api: Awaited<ReturnType<typeof request.newContext>>,
-  title: string,
-): Promise<string> => {
-  const res = await api.post("/api/articles", {
-    data: { article: { title, description: "d", body: "b" } },
-  });
-  expect(res.status()).toBe(201);
-  const body = (await res.json()) as { article: { slug: string } };
-  return body.article.slug;
-};
 
 test.describe("issue #12 — API favorite / unfavorite article", () => {
   test("Scenario 1: first favorite flips count 0 → 1 and favorited true", async () => {
     const id = uniq();
     const jake = `jake-${id}`;
     const dan = `dan-${id}`;
-    const jakeApi = await request.newContext({ baseURL: API_URL });
-    const danApi = await request.newContext({ baseURL: API_URL });
-    await registerUser(jakeApi, jake);
-    await registerUser(danApi, dan);
-    const slug = await createArticle(jakeApi, `Favorite me ${id}`);
+    const jakeApi = await FavoritesApi.newContext();
+    const danApi = await FavoritesApi.newContext();
+    await jakeApi.registerUser(jake);
+    await danApi.registerUser(dan);
+    const slug = await jakeApi.createArticle(`Favorite me ${id}`);
 
     // Baseline: envelope reports 0 + false pre-favorite.
-    const before = await danApi.get(`/api/articles/${slug}`);
-    const beforeBody = (await before.json()) as {
-      article: { favorited: boolean; favoritesCount: number };
-    };
-    expect(beforeBody.article.favoritesCount).toBe(0);
-    expect(beforeBody.article.favorited).toBe(false);
+    const before = await danApi.readBySlug(slug);
+    expect(before.favoritesCount).toBe(0);
+    expect(before.favorited).toBe(false);
 
-    const fav = await danApi.post(`/api/articles/${slug}/favorite`);
-    expect(fav.status()).toBe(200);
-    const favBody = (await fav.json()) as {
-      article: { favorited: boolean; favoritesCount: number };
-    };
-    expect(favBody.article.favoritesCount).toBe(1);
-    expect(favBody.article.favorited).toBe(true);
+    const fav = await danApi.favorite(slug);
+    expect(fav.favoritesCount).toBe(1);
+    expect(fav.favorited).toBe(true);
   });
 
   test("Scenario 2: favoriting twice is idempotent — count stays 1", async () => {
     const id = uniq();
     const jake = `jake-${id}`;
     const dan = `dan-${id}`;
-    const jakeApi = await request.newContext({ baseURL: API_URL });
-    const danApi = await request.newContext({ baseURL: API_URL });
-    await registerUser(jakeApi, jake);
-    await registerUser(danApi, dan);
-    const slug = await createArticle(jakeApi, `Idempotent ${id}`);
+    const jakeApi = await FavoritesApi.newContext();
+    const danApi = await FavoritesApi.newContext();
+    await jakeApi.registerUser(jake);
+    await danApi.registerUser(dan);
+    const slug = await jakeApi.createArticle(`Idempotent ${id}`);
 
-    await danApi.post(`/api/articles/${slug}/favorite`);
-    const second = await danApi.post(`/api/articles/${slug}/favorite`);
-    expect(second.status()).toBe(200);
-    const body = (await second.json()) as {
-      article: { favorited: boolean; favoritesCount: number };
-    };
-    expect(body.article.favoritesCount).toBe(1);
-    expect(body.article.favorited).toBe(true);
+    await danApi.favorite(slug);
+    const second = await danApi.favorite(slug);
+    expect(second.favoritesCount).toBe(1);
+    expect(second.favorited).toBe(true);
   });
 
   test("Scenario 3: unfavorite flips count 1 → 0 and favorited false", async () => {
     const id = uniq();
     const jake = `jake-${id}`;
     const dan = `dan-${id}`;
-    const jakeApi = await request.newContext({ baseURL: API_URL });
-    const danApi = await request.newContext({ baseURL: API_URL });
-    await registerUser(jakeApi, jake);
-    await registerUser(danApi, dan);
-    const slug = await createArticle(jakeApi, `Unfavorite ${id}`);
+    const jakeApi = await FavoritesApi.newContext();
+    const danApi = await FavoritesApi.newContext();
+    await jakeApi.registerUser(jake);
+    await danApi.registerUser(dan);
+    const slug = await jakeApi.createArticle(`Unfavorite ${id}`);
 
-    await danApi.post(`/api/articles/${slug}/favorite`);
-    const un = await danApi.delete(`/api/articles/${slug}/favorite`);
-    expect(un.status()).toBe(200);
-    const body = (await un.json()) as {
-      article: { favorited: boolean; favoritesCount: number };
-    };
-    expect(body.article.favoritesCount).toBe(0);
-    expect(body.article.favorited).toBe(false);
+    await danApi.favorite(slug);
+    const un = await danApi.unfavorite(slug);
+    expect(un.favoritesCount).toBe(0);
+    expect(un.favorited).toBe(false);
   });
 
   test("Scenario 4: favoritesCount reflects multiple users", async () => {
@@ -111,26 +74,23 @@ test.describe("issue #12 — API favorite / unfavorite article", () => {
     const jake = `jake-${id}`;
     const dan = `dan-${id}`;
     const alice = `alice-${id}`;
-    const jakeApi = await request.newContext({ baseURL: API_URL });
-    const danApi = await request.newContext({ baseURL: API_URL });
-    const aliceApi = await request.newContext({ baseURL: API_URL });
-    await registerUser(jakeApi, jake);
-    await registerUser(danApi, dan);
-    await registerUser(aliceApi, alice);
-    const slug = await createArticle(jakeApi, `Multi-fav ${id}`);
+    const jakeApi = await FavoritesApi.newContext();
+    const danApi = await FavoritesApi.newContext();
+    const aliceApi = await FavoritesApi.newContext();
+    await jakeApi.registerUser(jake);
+    await danApi.registerUser(dan);
+    await aliceApi.registerUser(alice);
+    const slug = await jakeApi.createArticle(`Multi-fav ${id}`);
 
-    await danApi.post(`/api/articles/${slug}/favorite`);
-    await aliceApi.post(`/api/articles/${slug}/favorite`);
+    await danApi.favorite(slug);
+    await aliceApi.favorite(slug);
 
-    const anon = await request.newContext({ baseURL: API_URL });
-    const res = await anon.get(`/api/articles/${slug}`);
-    const body = (await res.json()) as {
-      article: { favorited: boolean; favoritesCount: number };
-    };
-    expect(body.article.favoritesCount).toBe(2);
+    const anon = await FavoritesApi.newContext();
+    const article = await anon.readBySlug(slug);
+    expect(article.favoritesCount).toBe(2);
     // Anonymous viewer sees favorited=false regardless of other users'
     // state — `favorited` is strictly viewer-relative.
-    expect(body.article.favorited).toBe(false);
+    expect(article.favorited).toBe(false);
   });
 
   test("Scenario 5 (detail-endpoint half): viewer-relative favorited is per-user", async () => {
@@ -142,52 +102,46 @@ test.describe("issue #12 — API favorite / unfavorite article", () => {
     const jake = `jake-${id}`;
     const dan = `dan-${id}`;
     const alice = `alice-${id}`;
-    const jakeApi = await request.newContext({ baseURL: API_URL });
-    const danApi = await request.newContext({ baseURL: API_URL });
-    const aliceApi = await request.newContext({ baseURL: API_URL });
-    await registerUser(jakeApi, jake);
-    await registerUser(danApi, dan);
-    await registerUser(aliceApi, alice);
-    const slug = await createArticle(jakeApi, `Per-viewer ${id}`);
+    const jakeApi = await FavoritesApi.newContext();
+    const danApi = await FavoritesApi.newContext();
+    const aliceApi = await FavoritesApi.newContext();
+    await jakeApi.registerUser(jake);
+    await danApi.registerUser(dan);
+    await aliceApi.registerUser(alice);
+    const slug = await jakeApi.createArticle(`Per-viewer ${id}`);
 
-    await danApi.post(`/api/articles/${slug}/favorite`);
+    await danApi.favorite(slug);
 
-    const danView = await danApi.get(`/api/articles/${slug}`);
-    const danBody = (await danView.json()) as {
-      article: { favorited: boolean; favoritesCount: number };
-    };
-    expect(danBody.article.favorited).toBe(true);
-    expect(danBody.article.favoritesCount).toBe(1);
+    const danView = await danApi.readBySlug(slug);
+    expect(danView.favorited).toBe(true);
+    expect(danView.favoritesCount).toBe(1);
 
-    const aliceView = await aliceApi.get(`/api/articles/${slug}`);
-    const aliceBody = (await aliceView.json()) as {
-      article: { favorited: boolean; favoritesCount: number };
-    };
-    expect(aliceBody.article.favorited).toBe(false);
-    expect(aliceBody.article.favoritesCount).toBe(1);
+    const aliceView = await aliceApi.readBySlug(slug);
+    expect(aliceView.favorited).toBe(false);
+    expect(aliceView.favoritesCount).toBe(1);
   });
 
   test("Scenario 6: favorite endpoints require auth", async () => {
     const id = uniq();
     const jake = `jake-${id}`;
-    const jakeApi = await request.newContext({ baseURL: API_URL });
-    await registerUser(jakeApi, jake);
-    const slug = await createArticle(jakeApi, `Auth-check ${id}`);
+    const jakeApi = await FavoritesApi.newContext();
+    await jakeApi.registerUser(jake);
+    const slug = await jakeApi.createArticle(`Auth-check ${id}`);
 
-    const anon = await request.newContext({ baseURL: API_URL });
-    const post = await anon.post(`/api/articles/${slug}/favorite`);
+    const anon = await FavoritesApi.newContext();
+    const post = await anon.rawFavorite(slug);
     expect(post.status()).toBe(401);
-    const del = await anon.delete(`/api/articles/${slug}/favorite`);
+    const del = await anon.rawUnfavorite(slug);
     expect(del.status()).toBe(401);
   });
 
   test("Scenario 7: favorite non-existent article → 404", async () => {
     const id = uniq();
     const dan = `dan-${id}`;
-    const danApi = await request.newContext({ baseURL: API_URL });
-    await registerUser(danApi, dan);
+    const danApi = await FavoritesApi.newContext();
+    await danApi.registerUser(dan);
 
-    const res = await danApi.post(`/api/articles/no-such-slug-${id}/favorite`);
+    const res = await danApi.rawFavorite(`no-such-slug-${id}`);
     expect(res.status()).toBe(404);
   });
 });

@@ -1,54 +1,22 @@
 import {
   expect,
-  request,
   test,
   type BrowserContext,
 } from "@playwright/test";
 import { runAxe } from "../axe-config";
+import { FavoriteButton, FavoritesApi } from "../page-objects/favorite";
 
 // BDD coverage for issue #56: interactive favorite toggle on the
 // homepage ArticlePreview card. Four scenarios from the issue body.
-
-const API_URL =
-  process.env.API_URL ??
-  process.env.NEXT_PUBLIC_API_URL ??
-  "http://localhost:3101";
+//
+// #99 Phase 2 refactor: API seeds go through `FavoritesApi`; the
+// FavoriteButton on each preview card is driven by the
+// `FavoriteButton` component POP (resolved by slug via
+// `FavoriteButton.inCard(page, slug)`).
 
 const WEB_URL = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3100";
 
 const uniq = () => `${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-
-type ApiCtx = Awaited<ReturnType<typeof request.newContext>>;
-const apiContext = () => request.newContext({ baseURL: API_URL });
-
-const registerUser = async (api: ApiCtx, username: string): Promise<string> => {
-  const res = await api.post("/api/users", {
-    data: {
-      user: {
-        username,
-        email: `${username}@jake.jake`,
-        password: "jakejake",
-      },
-    },
-  });
-  expect(res.status()).toBe(201);
-  const setCookie = res.headers()["set-cookie"] ?? "";
-  const match = setCookie.match(/conduit_session=([^;]+)/);
-  if (!match) throw new Error("expected conduit_session cookie from register");
-  return match[1];
-};
-
-const createArticle = async (
-  api: ApiCtx,
-  title: string,
-): Promise<string> => {
-  const res = await api.post("/api/articles", {
-    data: { article: { title, description: "d", body: "b" } },
-  });
-  expect(res.status()).toBe(201);
-  const payload = (await res.json()) as { article: { slug: string } };
-  return payload.article.slug;
-};
 
 const primeSession = async (
   context: BrowserContext,
@@ -75,16 +43,6 @@ const primeSession = async (
   ]);
 };
 
-// The preview card carrying slug `<slug>` scopes the FavoriteButton
-// assertions to that one article — otherwise sibling previews (seeded
-// by other specs running in parallel) would poison role queries.
-const cardFor = (page: Parameters<typeof test>[1] extends (args: {
-  page: infer P;
-}) => unknown
-  ? P
-  : never, slug: string) =>
-  page.locator(`.article-preview:has(a[href="/article/${slug}"])`);
-
 test.describe("issue #56 — homepage favorite toggle", () => {
   // Cold-start warmup (#89). A fresh `docker compose up --build` leaves
   // Next's first-compile window open for a few seconds after the web
@@ -108,13 +66,13 @@ test.describe("issue #56 — homepage favorite toggle", () => {
     context,
   }) => {
     const id = uniq();
-    const jakeApi = await apiContext();
-    const danApi = await apiContext();
+    const jakeApi = await FavoritesApi.newContext();
+    const danApi = await FavoritesApi.newContext();
     const jake = `jake-${id}`;
     const dan = `dan-${id}`;
-    await registerUser(jakeApi, jake);
-    const danSession = await registerUser(danApi, dan);
-    const slug = await createArticle(jakeApi, `Fav1 ${id}`);
+    await jakeApi.registerUser(jake);
+    const danSession = await danApi.registerUser(dan);
+    const slug = await jakeApi.createArticle(`Fav1 ${id}`);
     await primeSession(context, danSession, dan);
 
     // The favorite POST runs server-side (Next action → internal
@@ -123,33 +81,28 @@ test.describe("issue #56 — homepage favorite toggle", () => {
     // persisted state after reload + independent API read.
 
     await page.goto(`${WEB_URL}/`);
-    const card = cardFor(page, slug);
-    await expect(card).toBeVisible();
+    const btn = FavoriteButton.inCard(page, slug);
+    await expect(btn.locator).toBeVisible();
 
-    const btn = card.getByTestId("favorite-button");
-    await expect(btn).toHaveAttribute("aria-pressed", "false");
-    await expect(btn).toContainText("0");
+    await btn.expectPressed(false);
+    await btn.expectCount(0);
     await btn.click();
 
     // Optimistic flip lands immediately; the final committed value
     // should still be 1 after the client's router.refresh() cycle.
-    await expect(btn).toHaveAttribute("aria-pressed", "true");
-    await expect(btn).toContainText("1");
+    await btn.expectPressed(true);
+    await btn.expectCount(1);
     // Wait for the server action's transition to complete (aria-busy
     // clears when router.refresh() has returned + props landed). The
     // earlier aria-pressed check satisfies the optimistic path; this
     // guarantees the DB write committed before the independent-fetch
     // persistence check below — closes the cold-start race in #89.
-    await expect(btn).not.toHaveAttribute("aria-busy", "true");
+    await btn.expectTransitionSettled();
 
     // Persistence: independent API fetch confirms the DB write landed.
-    const check = await danApi.get(`/api/articles/${slug}`);
-    expect(check.status()).toBe(200);
-    const body = (await check.json()) as {
-      article: { favorited: boolean; favoritesCount: number };
-    };
-    expect(body.article.favorited).toBe(true);
-    expect(body.article.favoritesCount).toBe(1);
+    const article = await danApi.readBySlug(slug);
+    expect(article.favorited).toBe(true);
+    expect(article.favoritesCount).toBe(1);
   });
 
   test("Scenario 2: unfavorite on a preview card — optimistic flip + persists", async ({
@@ -157,38 +110,32 @@ test.describe("issue #56 — homepage favorite toggle", () => {
     context,
   }) => {
     const id = uniq();
-    const jakeApi = await apiContext();
-    const danApi = await apiContext();
+    const jakeApi = await FavoritesApi.newContext();
+    const danApi = await FavoritesApi.newContext();
     const jake = `jake-${id}`;
     const dan = `dan-${id}`;
-    await registerUser(jakeApi, jake);
-    const danSession = await registerUser(danApi, dan);
-    const slug = await createArticle(jakeApi, `Fav2 ${id}`);
+    await jakeApi.registerUser(jake);
+    const danSession = await danApi.registerUser(dan);
+    const slug = await jakeApi.createArticle(`Fav2 ${id}`);
     // Seed: dan favorites via the API so the UI starts with favorited=true.
-    const favSeed = await danApi.post(`/api/articles/${slug}/favorite`);
-    expect(favSeed.status()).toBe(200);
+    await danApi.favorite(slug);
     await primeSession(context, danSession, dan);
 
     await page.goto(`${WEB_URL}/`);
-    const card = cardFor(page, slug);
-    const btn = card.getByTestId("favorite-button");
-    await expect(btn).toHaveAttribute("aria-pressed", "true");
-    await expect(btn).toContainText("1");
+    const btn = FavoriteButton.inCard(page, slug);
+    await btn.expectPressed(true);
+    await btn.expectCount(1);
     await btn.click();
 
-    await expect(btn).toHaveAttribute("aria-pressed", "false");
-    await expect(btn).toContainText("0");
+    await btn.expectPressed(false);
+    await btn.expectCount(0);
     // Wait for the transition to commit before the independent-fetch
     // persistence check — see Scenario 1 note and #89.
-    await expect(btn).not.toHaveAttribute("aria-busy", "true");
+    await btn.expectTransitionSettled();
 
-    const check = await danApi.get(`/api/articles/${slug}`);
-    expect(check.status()).toBe(200);
-    const body = (await check.json()) as {
-      article: { favorited: boolean; favoritesCount: number };
-    };
-    expect(body.article.favorited).toBe(false);
-    expect(body.article.favoritesCount).toBe(0);
+    const article = await danApi.readBySlug(slug);
+    expect(article.favorited).toBe(false);
+    expect(article.favoritesCount).toBe(0);
   });
 
   test("Scenario 3: server rejects the toggle — UI reverts + error indication", async ({
@@ -196,13 +143,13 @@ test.describe("issue #56 — homepage favorite toggle", () => {
     context,
   }) => {
     const id = uniq();
-    const jakeApi = await apiContext();
-    const danApi = await apiContext();
+    const jakeApi = await FavoritesApi.newContext();
+    const danApi = await FavoritesApi.newContext();
     const jake = `jake-${id}`;
     const dan = `dan-${id}`;
-    await registerUser(jakeApi, jake);
-    const danSession = await registerUser(danApi, dan);
-    const slug = await createArticle(jakeApi, `Fav3 ${id}`);
+    await jakeApi.registerUser(jake);
+    const danSession = await danApi.registerUser(dan);
+    const slug = await jakeApi.createArticle(`Fav3 ${id}`);
     await primeSession(context, danSession, dan);
 
     // Induce a 404 from the server action by deleting the article
@@ -210,29 +157,27 @@ test.describe("issue #56 — homepage favorite toggle", () => {
     // throws when the API responds non-2xx, which surfaces as
     // data-errored + optimistic revert via useOptimistic.
     await page.goto(`${WEB_URL}/`);
-    const card = cardFor(page, slug);
-    const btn = card.getByTestId("favorite-button");
-    await expect(btn).toHaveAttribute("aria-pressed", "false");
+    const btn = FavoriteButton.inCard(page, slug);
+    await btn.expectPressed(false);
 
-    const del = await jakeApi.delete(`/api/articles/${slug}`);
-    expect(del.status()).toBe(204);
+    await jakeApi.deleteArticle(slug);
 
     await btn.click();
 
     // Within the 1s AC window, the button returns to favorited=false
     // and flags the error via data-errored.
-    await expect(btn).toHaveAttribute("data-errored", "true", { timeout: 2000 });
-    await expect(btn).toHaveAttribute("aria-pressed", "false");
-    await expect(btn).toContainText("0");
+    await btn.expectErrored();
+    await btn.expectPressed(false);
+    await btn.expectCount(0);
   });
 
   test("Scenario 4: anonymous click navigates to /login?next=... and fires no POST", async ({
     page,
   }) => {
     const id = uniq();
-    const jakeApi = await apiContext();
-    await registerUser(jakeApi, `jake-${id}`);
-    const slug = await createArticle(jakeApi, `Fav4 ${id}`);
+    const jakeApi = await FavoritesApi.newContext();
+    await jakeApi.registerUser(`jake-${id}`);
+    const slug = await jakeApi.createArticle(`Fav4 ${id}`);
 
     // Assert no favorite POST is ever attempted.
     let favPostSeen = false;
@@ -246,9 +191,8 @@ test.describe("issue #56 — homepage favorite toggle", () => {
     });
 
     await page.goto(`${WEB_URL}/`);
-    const card = cardFor(page, slug);
-    await expect(card).toBeVisible();
-    const btn = card.getByTestId("favorite-button");
+    const btn = FavoriteButton.inCard(page, slug);
+    await expect(btn.locator).toBeVisible();
     await btn.click();
 
     const expectedNext = `/article/${encodeURIComponent(slug)}`;
@@ -263,9 +207,9 @@ test.describe("issue #56 — homepage favorite toggle", () => {
 
 test("axe a11y gate on homepage with articles (#87)", async ({ page }) => {
   const id = uniq();
-  const jakeApi = await apiContext();
-  await registerUser(jakeApi, `jake-${id}`);
-  await createArticle(jakeApi, `Axe ${id}`);
+  const api = await FavoritesApi.newContext();
+  await api.registerUser(`jake-${id}`);
+  await api.createArticle(`Axe ${id}`);
   await page.goto(`${WEB_URL}/`);
   await runAxe(page);
 });
