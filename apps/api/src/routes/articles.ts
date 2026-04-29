@@ -1,18 +1,21 @@
 import { createRoute, type OpenAPIHono } from "@hono/zod-openapi";
 import { z } from "@hono/zod-openapi";
 import type { AppEnv } from "../app.js";
+import { config } from "../config.js";
 import {
   ArticleError,
   createArticle,
   deleteArticle,
   favoriteArticle,
   getArticleBySlug,
+  listArticles,
   unfavoriteArticle,
   updateArticle,
 } from "../services/articles.service.js";
 import { optionalAuth, requireAuth, type UserVars } from "../middleware/jwt-cookie.js";
 import { ErrorResponseSchema } from "../schemas/user.js";
 import {
+  ArticleListResponseSchema,
   ArticleResponseSchema,
   CreateArticleRequestSchema,
   UpdateArticleRequestSchema,
@@ -29,6 +32,48 @@ const SlugParam = z
 
 const jsonError = (field: string, detail: string) => ({
   errors: { [field]: [detail] },
+});
+
+// Query-param schema for list + filter. `z.coerce.number()` accepts the
+// string shape URLSearchParams produces; the outer `.max(...)` threshold
+// comes from config so ops can adjust per-env without a redeploy.
+// Field-level messages here match the AC's "must be at most 100"
+// expectation via the spec422Hook (which emits { errors: { limit: [...] } }).
+const ListArticlesQuery = z
+  .object({
+    tag: z.string().optional(),
+    author: z.string().optional(),
+    favorited: z.string().optional(),
+    limit: z.coerce
+      .number()
+      .int()
+      .min(1, "must be at least 1")
+      .max(config.articleListMaxLimit, `must be at most ${config.articleListMaxLimit}`)
+      .optional(),
+    offset: z.coerce
+      .number()
+      .int()
+      .min(0, "must be at least 0")
+      .optional(),
+  })
+  .openapi("ListArticlesQuery");
+
+const listArticlesRoute = createRoute({
+  method: "get",
+  path: "/api/articles",
+  tags: ["articles"],
+  summary: "List articles with optional filters + pagination",
+  request: { query: ListArticlesQuery },
+  responses: {
+    200: {
+      description: "Articles + total count",
+      content: { "application/json": { schema: ArticleListResponseSchema } },
+    },
+    422: {
+      description: "Unprocessable entity",
+      content: { "application/json": { schema: ErrorResponseSchema } },
+    },
+  },
 });
 
 const createArticleRoute = createRoute({
@@ -184,7 +229,31 @@ const unfavoriteRoute = createRoute({
 export const registerArticleRoutes = (app: OpenAPIHono<AppEnv>): void => {
   const authed = app as unknown as OpenAPIHono<ArticleEnv>;
 
-  authed.use(createArticleRoute.getRoutingPath(), requireAuth());
+  // GET /api/articles (list) and POST /api/articles (create) share the
+  // same path, and Hono's `app.use(path, mw)` is method-agnostic —
+  // mounting `requireAuth()` on the shared path would 401 anonymous
+  // GETs. Use `optionalAuth()` here (serves both), and the POST
+  // handler enforces auth via its own `if (!viewer) → 401` check.
+  // Same pattern used by the shared `/api/articles/{slug}` surface.
+  authed.use(listArticlesRoute.getRoutingPath(), optionalAuth());
+  authed.openapi(listArticlesRoute, async (c) => {
+    const viewer = c.get("user");
+    const q = c.req.valid("query");
+    const limit = q.limit ?? config.articleListDefaultLimit;
+    const offset = q.offset ?? 0;
+    const result = await listArticles(
+      {
+        tag: q.tag,
+        author: q.author,
+        favoritedBy: q.favorited,
+        limit,
+        offset,
+      },
+      viewer?.id ?? null,
+    );
+    return c.json(result, 200);
+  });
+
   authed.openapi(createArticleRoute, async (c) => {
     const viewer = c.get("user");
     if (!viewer) return c.json(jsonError("auth", "Unauthorized"), 401);

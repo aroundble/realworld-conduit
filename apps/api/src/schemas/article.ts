@@ -31,6 +31,13 @@ export const ArticleResponseSchema = z
   .object({ article: ArticleSchema })
   .openapi("ArticleResponse");
 
+export const ArticleListResponseSchema = z
+  .object({
+    articles: z.array(ArticleSchema),
+    articlesCount: z.number().int().nonnegative(),
+  })
+  .openapi("ArticleListResponse");
+
 export const CreateArticleRequestSchema = z
   .object({
     article: z.object({
