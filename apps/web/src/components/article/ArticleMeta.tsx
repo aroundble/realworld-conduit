@@ -47,6 +47,9 @@ export const ArticleMeta = ({ article, viewerUsername, authed }: Props) => {
           {article.author.username}
         </Link>
         <span className="date">{formatDate(article.createdAt)}</span>
+        <span className="read-time" data-testid="read-time">
+          {article.readingTimeMinutes} min read
+        </span>
       </div>
       {isOwn ? (
         <>

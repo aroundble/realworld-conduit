@@ -23,6 +23,10 @@ export const ArticleSchema = z
     updatedAt: z.string(),
     favorited: z.boolean(),
     favoritesCount: z.number().int().nonnegative(),
+    // Server-computed read-time estimate in minutes (#125). Always
+    // at least 1 for legibility ("1 min read"); clients display it
+    // inline with the date in article meta.
+    readingTimeMinutes: z.number().int().positive(),
     author: ArticleAuthorSchema,
   })
   .openapi("Article");
