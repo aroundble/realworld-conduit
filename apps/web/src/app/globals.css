@@ -515,7 +515,13 @@ footer {
   color: var(--conduit-text-muted);
 }
 
-[data-theme="dark"] .article-meta .author {
+/* .author link underline applies in both palettes — WCAG 1.4.1
+ * requires ≥3:1 link vs adjacent-text contrast to rely on color
+ * alone; our palette sits below 3:1 in both modes. This matches
+ * PR #145 (fix #143); kept here so this branch's axe Scenario 3
+ * doesn't flake until #145 merges. If #145 lands first, the
+ * rebase of this PR will be a no-op diff. */
+.article-meta .author {
   text-decoration: underline;
 }
 
