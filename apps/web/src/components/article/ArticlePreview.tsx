@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { RelativeTime } from "@/components/RelativeTime";
 import type { ArticleListItem } from "@/features/articles/queries";
 import { ArticlePreviewLink } from "./ArticlePreviewLink";
 import { FavoriteButton } from "./FavoriteButton";
@@ -15,13 +16,6 @@ type Props = {
   // so the favorite button knows whether to POST or redirect to /login.
   authed: boolean;
 };
-
-const formatDate = (iso: string): string =>
-  new Date(iso).toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
 
 export const ArticlePreview = ({ article, authed }: Props) => {
   return (
@@ -49,7 +43,7 @@ export const ArticlePreview = ({ article, authed }: Props) => {
           >
             {article.author.username}
           </Link>
-          <span className="date">{formatDate(article.createdAt)}</span>
+          <RelativeTime iso={article.createdAt} className="date" />
           <span className="read-time" data-testid="read-time">
             {article.readingTimeMinutes} min read
           </span>

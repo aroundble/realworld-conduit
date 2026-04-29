@@ -1,3 +1,4 @@
+import { RelativeTime } from "@/components/RelativeTime";
 import type { Comment } from "@/features/articles/queries";
 import { DeleteCommentButton } from "./DeleteCommentButton";
 
@@ -5,17 +6,6 @@ type Props = {
   slug: string;
   comment: Comment;
   viewerUsername: string | null;
-};
-
-const formatDate = (iso: string): string => {
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime())
-    ? iso
-    : d.toLocaleDateString("en-US", {
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-      });
 };
 
 export const CommentItem = ({ slug, comment, viewerUsername }: Props) => {
@@ -49,7 +39,7 @@ export const CommentItem = ({ slug, comment, viewerUsername }: Props) => {
         >
           {comment.author.username}
         </a>
-        <span className="date-posted">{formatDate(comment.createdAt)}</span>
+        <RelativeTime iso={comment.createdAt} className="date-posted" />
         {isOwn ? (
           <DeleteCommentButton slug={slug} commentId={comment.id} />
         ) : null}
