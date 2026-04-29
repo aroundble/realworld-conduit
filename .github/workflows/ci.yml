@@ -182,3 +182,112 @@ jobs:
       - name: compose down
         if: always()
         run: $COMPOSE down -v
+
+  size-limit:
+    # Bundle-size budget gate (#24). Runs after `install` so it reuses
+    # the build artefacts on disk; fails the workflow if any entry in
+    # apps/web/.size-limit.cjs exceeds its limit.
+    name: size-limit (bundle budget)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: install
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: enable corepack + pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@"${PNPM_VERSION}" --activate
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: install
+        run: pnpm install --frozen-lockfile=false
+
+      - name: build web
+        # size-limit reads `apps/web/.next/static/chunks/*.{js,css}`, so
+        # we need a fresh build — `install` job's build artefacts don't
+        # survive across jobs in ubuntu-latest's workspace.
+        run: pnpm --filter @conduit/web build
+
+      - name: size-limit
+        run: pnpm -C apps/web exec size-limit
+
+  lhci:
+    # Lighthouse CI quality gate (#24). Boots the compose stack,
+    # waits for web healthy, runs `lhci autorun` against a fixed set
+    # of anon routes, asserts the configured thresholds, uploads
+    # the full report as an artefact.
+    name: lhci (perf + a11y)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: install
+    env:
+      COMPOSE: docker compose -f infra/docker-compose.yml --env-file .env
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: enable corepack + pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@"${PNPM_VERSION}" --activate
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: install
+        run: pnpm install --frozen-lockfile=false
+
+      - name: bootstrap .env
+        run: bash scripts/dev-bootstrap.sh
+
+      - name: compose up
+        run: $COMPOSE up -d --build
+
+      - name: wait for web healthy
+        run: |
+          set -e
+          state=starting
+          for i in $(seq 1 60); do
+            state=$(docker inspect --format '{{.State.Health.Status}}' conduit-web-1 2>/dev/null || echo starting)
+            if [ "$state" = "healthy" ]; then break; fi
+            sleep 2
+          done
+          if [ "$state" != "healthy" ]; then
+            echo "::error::web never became healthy"
+            $COMPOSE logs web | tail -200
+            exit 1
+          fi
+
+      - name: run lhci
+        # The local env writes WEB_HOST_PORT=3000 via dev-bootstrap.
+        # lighthouserc.json pins localhost:3100 for per-worktree
+        # parity with local runs — override to the CI host port.
+        env:
+          LHCI_URL_BASE: http://localhost:3000
+        run: |
+          # Substitute the baseline base-URL in the config so lhci
+          # hits the CI compose stack ports.
+          sed -i "s|http://localhost:3100|${LHCI_URL_BASE}|g" lighthouserc.json
+          pnpm run lhci
+
+      - name: upload lhci artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lhci-${{ github.event.pull_request.number || github.run_id }}
+          path: .lighthouseci/**
+          if-no-files-found: warn
+
+      - name: compose logs on failure
+        if: failure()
+        run: $COMPOSE logs --no-color --tail=200
+
+      - name: compose down
+        if: always()
+        run: $COMPOSE down -v

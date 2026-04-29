@@ -47,3 +47,6 @@ tests/e2e/screenshots/**
 !tests/e2e/screenshots/*/
 !tests/e2e/screenshots/*/.gitkeep
 playwright-report/
+
+# Lighthouse CI reports — regenerated on every `pnpm run lhci` run.
+.lighthouseci/
