@@ -138,7 +138,7 @@ export const registerCommentRoutes = (app: OpenAPIHono<AppEnv>): void => {
   // keeps anonymous GET working while POST enforces auth.
   authed.openapi(addCommentRoute, async (c) => {
     const viewer = c.get("user");
-    if (!viewer) return c.json(jsonError("auth", "Unauthorized"), 401);
+    if (!viewer) return c.json(jsonError("token", "is missing"), 401);
     const { slug } = c.req.valid("param");
     const { comment } = c.req.valid("json");
     try {
@@ -158,7 +158,7 @@ export const registerCommentRoutes = (app: OpenAPIHono<AppEnv>): void => {
   authed.use(deleteCommentRoute.getRoutingPath(), requireAuth());
   authed.openapi(deleteCommentRoute, async (c) => {
     const viewer = c.get("user");
-    if (!viewer) return c.json(jsonError("auth", "Unauthorized"), 401);
+    if (!viewer) return c.json(jsonError("token", "is missing"), 401);
     const { slug, id } = c.req.valid("param");
     try {
       await deleteComment(viewer.id, slug, id);

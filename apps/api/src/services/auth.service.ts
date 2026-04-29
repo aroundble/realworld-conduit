@@ -58,16 +58,19 @@ export const verifyToken = (token: string): JwtPayload => {
       clockTolerance: config.jwtClockSkewSeconds,
     });
   } catch {
-    // Expired / malformed / signature-mismatch — surface as the spec's
-    // 401 so the global handler renders JSON + clears the cookie.
-    throw new AuthError("auth", "Unauthorized", 401);
+    // Expired / malformed / signature-mismatch — treated the same as
+    // "no token" for the purposes of the 401 envelope. The spec's
+    // Bruno collection treats unparseable tokens as missing-credential
+    // (see errors-auth/10 etc.), and the shape is
+    // `{"errors":{"token":["is missing"]}}`.
+    throw new AuthError("token", "is missing", 401);
   }
   if (typeof decoded === "string") {
-    throw new AuthError("auth", "Unauthorized", 401);
+    throw new AuthError("token", "is missing", 401);
   }
   const { id, email, username } = decoded as Record<string, unknown>;
   if (typeof id !== "number" || typeof email !== "string" || typeof username !== "string") {
-    throw new AuthError("auth", "Unauthorized", 401);
+    throw new AuthError("token", "is missing", 401);
   }
   return { id, email, username };
 };
@@ -124,11 +127,16 @@ export type LoginInput = {
 export const loginUser = async (input: LoginInput): Promise<UserEnvelope> => {
   const user = await prisma.user.findUnique({ where: { email: input.email } });
   if (!user) {
-    throw new AuthError("email or password", "is invalid", 401);
+    // Spec envelope for wrong email/password: `{"errors":{"credentials":["invalid"]}}`
+    // at 401 — matches upstream Bruno `errors-auth/09-login-wrong-password.bru`.
+    // Both "unknown email" and "wrong password" collapse to the same
+    // envelope so a caller can't distinguish the two (enumeration
+    // defence).
+    throw new AuthError("credentials", "invalid", 401);
   }
   const ok = await bcrypt.compare(input.password, user.password);
   if (!ok) {
-    throw new AuthError("email or password", "is invalid", 401);
+    throw new AuthError("credentials", "invalid", 401);
   }
   return toEnvelope(user, signToken(user));
 };

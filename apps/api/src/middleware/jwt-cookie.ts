@@ -8,11 +8,14 @@ import { AuthError, verifyToken, type JwtPayload } from "../services/auth.servic
 // header and a cookie are present (Postman-compat path wins — matches
 // AC5 under deterministic dual-carrier conditions).
 //
-// Expired/invalid token on a strict-auth route throws AuthError(401),
-// which the global error handler (middleware/error.ts) renders as JSON
-// `{"errors":{"auth":["Unauthorized"]}}` and pairs with
+// Missing/expired/invalid token on a strict-auth route throws
+// AuthError("token", "is missing", 401), which the global error
+// handler (middleware/error.ts) renders as JSON
+// `{"errors":{"token":["is missing"]}}` and pairs with
 // `Set-Cookie: conduit_session=; Max-Age=0` to clear the stale cookie
 // (AC3). Soft-auth swallows the same error and proceeds anonymously.
+// The envelope shape matches the canonical RealWorld Bruno
+// collection's 13 no-auth / bad-token assertions — see #62 / ADR §18.
 
 export const COOKIE_NAME = "conduit_session";
 const AUTH_HEADER = "Authorization";
@@ -56,7 +59,7 @@ export const requireAuth = () =>
     const cookieToken = getCookie(c, COOKIE_NAME) ?? null;
     const token = pickToken(headerToken, cookieToken);
     if (!token) {
-      throw new AuthError("auth", "Unauthorized", 401);
+      throw new AuthError("token", "is missing", 401);
     }
     c.set("user", verifyToken(token));
     await next();
