@@ -26,3 +26,11 @@ export const CreateCommentRequestSchema = z
     }),
   })
   .openapi("CreateCommentRequest");
+
+export const UpdateCommentRequestSchema = z
+  .object({
+    comment: z.object({
+      body: z.string().min(1, "can't be blank").max(10_000),
+    }),
+  })
+  .openapi("UpdateCommentRequest");

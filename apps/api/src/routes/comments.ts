@@ -6,6 +6,7 @@ import {
   addComment,
   deleteComment,
   listComments,
+  updateComment,
 } from "../services/comments.service.js";
 import { optionalAuth, requireAuth, type UserVars } from "../middleware/jwt-cookie.js";
 import { rateLimit } from "../middleware/rate-limit.js";
@@ -14,6 +15,7 @@ import {
   CommentListResponseSchema,
   CommentResponseSchema,
   CreateCommentRequestSchema,
+  UpdateCommentRequestSchema,
 } from "../schemas/comment.js";
 
 type CommentVars = AppEnv["Variables"] & UserVars;
@@ -113,6 +115,42 @@ const deleteCommentRoute = createRoute({
   },
 });
 
+const updateCommentRoute = createRoute({
+  method: "put",
+  path: "/api/articles/{slug}/comments/{id}",
+  tags: ["comments"],
+  summary: "Edit own comment body",
+  request: {
+    params: SlugAndIdParams,
+    body: {
+      required: true,
+      content: { "application/json": { schema: UpdateCommentRequestSchema } },
+    },
+  },
+  responses: {
+    200: {
+      description: "Updated",
+      content: { "application/json": { schema: CommentResponseSchema } },
+    },
+    401: {
+      description: "Unauthorized",
+      content: { "application/json": { schema: ErrorResponseSchema } },
+    },
+    403: {
+      description: "Forbidden — viewer is not the comment author",
+      content: { "application/json": { schema: ErrorResponseSchema } },
+    },
+    404: {
+      description: "Article or comment not found",
+      content: { "application/json": { schema: ErrorResponseSchema } },
+    },
+    422: {
+      description: "Unprocessable entity",
+      content: { "application/json": { schema: ErrorResponseSchema } },
+    },
+  },
+});
+
 export const registerCommentRoutes = (app: OpenAPIHono<AppEnv>): void => {
   const authed = app as unknown as OpenAPIHono<CommentEnv>;
 
@@ -191,6 +229,40 @@ export const registerCommentRoutes = (app: OpenAPIHono<AppEnv>): void => {
       if (err instanceof CommentError) {
         if (err.status === 404) return c.json(jsonError(err.field, err.detail), 404);
         if (err.status === 403) return c.json(jsonError(err.field, err.detail), 403);
+      }
+      throw err;
+    }
+  });
+
+  // PUT shares the same path as DELETE, so the requireAuth() /
+  // rate-limit middleware above already covers it (Hono's
+  // `app.use(path, ...)` is method-agnostic but rate-limit's
+  // `methods: ["DELETE"]` narrow means PUT must register its own
+  // throttle bucket — slightly smaller because edits are rarer
+  // than deletes in most audience traffic patterns.
+  authed.use(
+    updateCommentRoute.getRoutingPath(),
+    rateLimit({
+      bucket: "comments:put",
+      limit: 20,
+      windowSec: 60,
+      keyBy: "user",
+      methods: ["PUT"],
+    }),
+  );
+  authed.openapi(updateCommentRoute, async (c) => {
+    const viewer = c.get("user");
+    if (!viewer) return c.json(jsonError("token", "is missing"), 401);
+    const { slug, id } = c.req.valid("param");
+    const { comment } = c.req.valid("json");
+    try {
+      const envelope = await updateComment(viewer.id, slug, id, comment.body);
+      return c.json({ comment: envelope }, 200);
+    } catch (err) {
+      if (err instanceof CommentError) {
+        if (err.status === 404) return c.json(jsonError(err.field, err.detail), 404);
+        if (err.status === 403) return c.json(jsonError(err.field, err.detail), 403);
+        if (err.status === 422) return c.json(jsonError(err.field, err.detail), 422);
       }
       throw err;
     }

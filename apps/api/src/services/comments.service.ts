@@ -123,3 +123,36 @@ export const deleteComment = async (
   }
   await prisma.comment.delete({ where: { id: commentId } });
 };
+
+// Owner-only body update. Mirrors deleteComment's 404/403 ladder
+// verbatim so a probing client can't distinguish "not your
+// comment" from "no such comment on this article". Returns the
+// updated envelope so the web client can optimistically replace
+// the row without a refetch round-trip.
+//
+// Prisma Comment lacks `@updatedAt` so updatedAt is set
+// explicitly; same pattern as articles.service.updateArticle.
+export const updateComment = async (
+  viewerId: number,
+  slug: string,
+  commentId: number,
+  body: string,
+): Promise<CommentEnvelope> => {
+  const articleId = await requireArticleId(slug);
+  const comment = await prisma.comment.findUnique({
+    where: { id: commentId },
+    select: { id: true, articleId: true, authorId: true },
+  });
+  if (!comment || comment.articleId !== articleId) {
+    throw new CommentError("comment", "not found", 404);
+  }
+  if (comment.authorId !== viewerId) {
+    throw new CommentError("comment", "forbidden", 403);
+  }
+  const updated = await prisma.comment.update({
+    where: { id: commentId },
+    data: { body, updatedAt: new Date() },
+    include: commentInclude,
+  });
+  return toEnvelope(updated, viewerId);
+};
