@@ -52,8 +52,11 @@ export const CreateArticleRequestSchema = z
   .object({
     article: z.object({
       title: z.string().min(1, "can't be blank").max(300),
-      description: z.string().max(1000),
-      body: z.string().max(50_000),
+      // description + body are required on create per RealWorld spec —
+      // the upstream Bruno errors-articles/10 + 11 assert 422 with
+      // `"can't be blank"` when either is empty. See #67.
+      description: z.string().min(1, "can't be blank").max(1000),
+      body: z.string().min(1, "can't be blank").max(50_000),
       tagList: z.array(z.string().min(1).max(50)).max(20).optional(),
     }),
   })
