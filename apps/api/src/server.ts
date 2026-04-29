@@ -1,6 +1,7 @@
 import { serve } from "@hono/node-server";
 import { createApp } from "./app.js";
 import { config } from "./config.js";
+import { logger } from "./logger.js";
 
 const app = createApp();
 
@@ -11,12 +12,12 @@ const server = serve(
     hostname: config.host,
   },
   ({ port }) => {
-    console.log(`[api] listening on :${port} (env=${config.nodeEnv})`);
+    logger.info({ port, env: config.nodeEnv }, "api listening");
   },
 );
 
 const shutdown = (signal: string): void => {
-  console.log(`[api] ${signal} received — shutting down`);
+  logger.info({ signal }, "shutting down");
   server.close(() => process.exit(0));
 };
 

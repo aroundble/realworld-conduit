@@ -12,6 +12,7 @@
 // so the wrapper stays schema-agnostic.
 
 import "server-only";
+import { headers as nextHeaders } from "next/headers";
 
 export type ApiResult<T> =
   | { ok: true; status: number; data: T; setCookie: string[] }
@@ -36,14 +37,23 @@ export const apiFetch = async <T>(
   init: RequestInit & { cookie?: string } = {},
 ): Promise<ApiResult<T>> => {
   const { cookie, headers: initHeaders, ...rest } = init;
-  const headers = new Headers(initHeaders);
-  headers.set("Content-Type", "application/json");
-  headers.set("Accept", "application/json");
-  if (cookie) headers.set("cookie", cookie);
+  const outgoing = new Headers(initHeaders);
+  outgoing.set("Content-Type", "application/json");
+  outgoing.set("Accept", "application/json");
+  if (cookie) outgoing.set("cookie", cookie);
+
+  // Forward the browser-visible request-id that middleware.ts set on
+  // the incoming request. This glues one browser request to every
+  // api log line it triggers (AC scenario 2).
+  const incomingHeaders = await nextHeaders();
+  const requestId = incomingHeaders.get("x-request-id");
+  if (requestId && !outgoing.has("x-request-id")) {
+    outgoing.set("x-request-id", requestId);
+  }
 
   const res = await fetch(`${API_URL}${path}`, {
     ...rest,
-    headers,
+    headers: outgoing,
     cache: "no-store",
   });
 
