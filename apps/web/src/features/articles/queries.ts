@@ -15,6 +15,8 @@ export type ArticleAuthor = {
   following: boolean;
 };
 
+// Full article envelope returned by the single-article GET. `body`
+// is only present here; the list endpoints strip it per #63 / spec.
 export type Article = {
   slug: string;
   title: string;
@@ -28,8 +30,15 @@ export type Article = {
   author: ArticleAuthor;
 };
 
+// List-envelope entry — same fields as `Article` minus `body`. The
+// homepage / profile / feed preview cards never read body; keeping
+// the types distinct means a consumer that tries to access body in
+// a list context surfaces a compile error rather than a runtime
+// undefined.
+export type ArticleListItem = Omit<Article, "body">;
+
 export type ArticleListPayload = {
-  articles: Article[];
+  articles: ArticleListItem[];
   articlesCount: number;
 };
 

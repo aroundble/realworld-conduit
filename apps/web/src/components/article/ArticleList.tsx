@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { ArticlePreview } from "@/components/article/ArticlePreview";
-import type { Article } from "@/features/articles/queries";
+import type { ArticleListItem } from "@/features/articles/queries";
 
 type Props = {
-  articles: Article[];
+  articles: ArticleListItem[];
   articlesCount: number;
   limit: number;
   currentPage: number;
