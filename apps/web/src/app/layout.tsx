@@ -1,13 +1,36 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Toaster } from "sonner";
 import { Footer } from "@/components/Footer";
 import { Navbar } from "@/components/Navbar";
+import { ServiceWorkerRegistration } from "@/components/ServiceWorkerRegistration";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Conduit",
   description: "A place to share your knowledge.",
+  // Apple-specific touch icon (#149). Standard /icons/ path keeps
+  // the PWA + legacy iOS home-screen affordances aligned.
+  appleWebApp: {
+    capable: true,
+    title: "Conduit",
+    statusBarStyle: "black-translucent",
+  },
+  icons: {
+    apple: [
+      { url: "/icons/apple-touch-icon.png", sizes: "180x180" },
+    ],
+  },
+};
+
+// theme-color (#149) with separate light + dark entries so the
+// phone's status bar tints to match whichever palette the user
+// sees. Dark value mirrors the palette in #136.
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#2c7a2c" },
+    { media: "(prefers-color-scheme: dark)", color: "#151517" },
+  ],
 };
 
 export default function RootLayout({
@@ -36,6 +59,9 @@ export default function RootLayout({
               inline error surfaces (conform-to error-messages lists
               on forms, data-errored attrs on buttons) still work. */}
           <Toaster position="top-center" closeButton />
+          {/* PWA service worker registration (#149). Lazy on
+              `load` so it never competes with first-paint. */}
+          <ServiceWorkerRegistration />
         </ThemeProvider>
       </body>
     </html>
