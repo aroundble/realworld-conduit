@@ -796,3 +796,43 @@ select:focus-visible,
 .shortcut-help-footer-link:focus {
   color: var(--conduit-green-dark);
 }
+
+/* ── Comment edit (#159) ─────────────────────────────────────
+ * Inline editor opens under a comment body when the owner
+ * clicks "Edit". The trigger is a minimal text link next to
+ * the body so it doesn't overshadow Delete; the Save/Cancel
+ * buttons use the existing small-button primary + outline
+ * patterns. "(edited)" badge is a dimmed inline marker next to
+ * the relative timestamp — must be readable on both palettes
+ * (WCAG AA ≥ 4.5:1 contrast).
+ */
+.comment-edit-trigger {
+  background: none;
+  border: none;
+  color: var(--conduit-green);
+  font-size: 0.8rem;
+  padding: 0.1rem 0.25rem;
+  cursor: pointer;
+  margin-left: 0.25rem;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.comment-edit-trigger:hover {
+  color: color-mix(in srgb, var(--conduit-green) 80%, black);
+}
+
+.comment-edit-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.comment-edited-badge {
+  color: var(--conduit-muted, #999);
+  font-size: 0.75rem;
+  font-style: italic;
+  margin-left: 0.4rem;
+}
+[data-theme="dark"] .comment-edited-badge {
+  color: #9ca3af;
+}
