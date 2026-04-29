@@ -85,6 +85,23 @@ const cardFor = (page: Parameters<typeof test>[1] extends (args: {
   page.locator(`.article-preview:has(a[href="/article/${slug}"])`);
 
 test.describe("issue #56 — homepage favorite toggle", () => {
+  // Cold-start warmup (#89). A fresh `docker compose up --build` leaves
+  // Next's first-compile window open for a few seconds after the web
+  // container reports healthy — the useOptimistic + router.refresh()
+  // dance in FavoriteButton can land its optimistic flip against a
+  // not-yet-warmed bundle and get overwritten when the refresh's
+  // freshly-compiled props arrive. One goto + networkidle here closes
+  // that window before Scenario 1 runs, without changing runtime
+  // behaviour.
+  test.beforeAll(async ({ browser }) => {
+    const page = await browser.newPage();
+    try {
+      await page.goto(`${WEB_URL}/`, { waitUntil: "networkidle" });
+    } finally {
+      await page.close();
+    }
+  });
+
   test("Scenario 1: authed favorite on a preview card — optimistic flip + persists", async ({
     page,
     context,
@@ -117,6 +134,12 @@ test.describe("issue #56 — homepage favorite toggle", () => {
     // should still be 1 after the client's router.refresh() cycle.
     await expect(btn).toHaveAttribute("aria-pressed", "true");
     await expect(btn).toContainText("1");
+    // Wait for the server action's transition to complete (aria-busy
+    // clears when router.refresh() has returned + props landed). The
+    // earlier aria-pressed check satisfies the optimistic path; this
+    // guarantees the DB write committed before the independent-fetch
+    // persistence check below — closes the cold-start race in #89.
+    await expect(btn).not.toHaveAttribute("aria-busy", "true");
 
     // Persistence: independent API fetch confirms the DB write landed.
     const check = await danApi.get(`/api/articles/${slug}`);
@@ -154,6 +177,9 @@ test.describe("issue #56 — homepage favorite toggle", () => {
 
     await expect(btn).toHaveAttribute("aria-pressed", "false");
     await expect(btn).toContainText("0");
+    // Wait for the transition to commit before the independent-fetch
+    // persistence check — see Scenario 1 note and #89.
+    await expect(btn).not.toHaveAttribute("aria-busy", "true");
 
     const check = await danApi.get(`/api/articles/${slug}`);
     expect(check.status()).toBe(200);
