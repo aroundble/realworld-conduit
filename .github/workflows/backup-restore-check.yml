@@ -1,0 +1,151 @@
+name: Backup/Restore Round-Trip
+
+# Proves the pg_dump -> pg_restore round-trip works end-to-end
+# against the current `latest` tip. Seeds fixtures, dumps, tears
+# down the stack (incl. volume), spins up a fresh stack, restores
+# the dump, and asserts the seeded row count matches.
+#
+# Runs on every push to latest so schema drift (a new migration
+# that the dump format can't represent cleanly) is caught before
+# an operator needs the backup in a real incident.
+#
+# Security note: no user-controlled input lands in run: steps.
+# The only interpolation is a backup-file path captured from
+# `ls` of our own backups/ directory — not from any github.event
+# field.
+
+on:
+  pull_request:
+    branches: [latest, main]
+    paths:
+      - "scripts/backup-*.sh"
+      - "apps/api/prisma/**"
+      - ".github/workflows/backup-restore-check.yml"
+  push:
+    branches: [latest]
+
+concurrency:
+  group: backup-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PNPM_VERSION: "10.33.2"
+  NODE_VERSION: "22"
+
+jobs:
+  round-trip:
+    name: dump + restore round-trip
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install deps
+        run: pnpm install --frozen-lockfile=false
+
+      - name: Bootstrap env
+        run: bash scripts/dev-bootstrap.sh
+
+      - name: Compose up (seed stack)
+        run: docker compose -f infra/docker-compose.yml --env-file .env up -d --build
+
+      - name: Wait for API healthy
+        run: |
+          for _ in $(seq 1 30); do
+            if curl -sf http://localhost:3101/healthz >/dev/null 2>&1; then
+              echo "api healthy"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "api failed to become healthy" >&2
+          docker compose -f infra/docker-compose.yml logs api
+          exit 1
+
+      - name: Seed fixture data via API
+        run: |
+          for i in 1 2 3 4 5; do
+            U="ci-fix-$i-$(date +%s)"
+            curl -s -c /tmp/cj-$i.txt -X POST http://localhost:3101/api/users \
+              -H "Content-Type: application/json" \
+              -d "{\"user\":{\"username\":\"$U\",\"email\":\"$U@jake.jake\",\"password\":\"jakejake\"}}" > /dev/null
+            curl -s -b /tmp/cj-$i.txt -X POST http://localhost:3101/api/articles \
+              -H "Content-Type: application/json" \
+              -d "{\"article\":{\"title\":\"CI fixture $i\",\"description\":\"d$i\",\"body\":\"b$i\"}}" > /dev/null
+          done
+          COUNT=$(curl -s 'http://localhost:3101/api/articles?limit=10' | python3 -c "import json,sys; print(json.load(sys.stdin)['articlesCount'])")
+          if [ "$COUNT" -ne 5 ]; then
+            echo "expected 5 seeded articles, got $COUNT" >&2
+            exit 1
+          fi
+          echo "seeded 5 articles"
+
+      - name: Dump
+        run: pnpm backup:dump
+
+      - name: Capture backup path
+        id: backup
+        run: |
+          BACKUP=$(ls -1t backups/conduit-*.sql.gz | head -1)
+          echo "file=$BACKUP" >> "$GITHUB_OUTPUT"
+          echo "captured backup at $BACKUP"
+
+      - name: Compose down (wipe volume)
+        run: docker compose -f infra/docker-compose.yml --env-file .env down -v
+
+      - name: Compose up (fresh stack)
+        run: docker compose -f infra/docker-compose.yml --env-file .env up -d --build
+
+      - name: Wait for API healthy (fresh stack)
+        run: |
+          for _ in $(seq 1 30); do
+            if curl -sf http://localhost:3101/healthz >/dev/null 2>&1; then
+              exit 0
+            fi
+            sleep 2
+          done
+          exit 1
+
+      - name: Assert DB is empty before restore
+        run: |
+          COUNT=$(curl -s 'http://localhost:3101/api/articles?limit=10' | python3 -c "import json,sys; print(json.load(sys.stdin)['articlesCount'])")
+          if [ "$COUNT" -ne 0 ]; then
+            echo "expected empty DB, got $COUNT articles" >&2
+            exit 1
+          fi
+          echo "fresh stack DB is empty"
+
+      - name: Restore from backup
+        # Pass the captured backup path as an env var rather than
+        # direct ${{ }} interpolation in the run: command. The
+        # source is our own `ls` output (not user-controlled), but
+        # the env-var pattern is the project-wide convention per
+        # CI security guidance.
+        env:
+          BACKUP_FILE: ${{ steps.backup.outputs.file }}
+        run: pnpm backup:restore "$BACKUP_FILE"
+
+      - name: Assert 5 articles restored
+        run: |
+          COUNT=$(curl -s 'http://localhost:3101/api/articles?limit=10' | python3 -c "import json,sys; print(json.load(sys.stdin)['articlesCount'])")
+          if [ "$COUNT" -ne 5 ]; then
+            echo "expected 5 restored articles, got $COUNT" >&2
+            docker compose -f infra/docker-compose.yml logs api | tail -50
+            exit 1
+          fi
+          echo "round-trip OK — 5 articles restored from backup"
+
+      - name: Compose down
+        if: always()
+        run: docker compose -f infra/docker-compose.yml --env-file .env down -v
