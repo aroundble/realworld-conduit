@@ -25,7 +25,7 @@ export class AuthError extends Error {
   constructor(
     public readonly field: string,
     public readonly detail: string,
-    public readonly status: 401 | 422,
+    public readonly status: 401 | 409 | 422,
   ) {
     super(`${field}: ${detail}`);
     this.name = "AuthError";
@@ -98,10 +98,16 @@ export const registerUser = async (input: RegisterInput): Promise<UserEnvelope> 
     select: { email: true, username: true },
   });
   if (existing) {
+    // Duplicate on register is a state conflict — the client's intent
+    // can never succeed without re-choosing an identifier. 409 per
+    // RealWorld spec / canonical Bruno `errors-auth/05` + `06`.
+    // Update-user clashes (line ~170) stay 422 because there the
+    // caller is already authenticated and the payload is a field
+    // validation, not a registration attempt.
     if (existing.email === input.email) {
-      throw new AuthError("email", "has already been taken", 422);
+      throw new AuthError("email", "has already been taken", 409);
     }
-    throw new AuthError("username", "has already been taken", 422);
+    throw new AuthError("username", "has already been taken", 409);
   }
 
   const passwordHash = await bcrypt.hash(input.password, config.bcryptCost);

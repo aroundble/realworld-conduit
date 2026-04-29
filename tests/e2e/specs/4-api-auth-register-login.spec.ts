@@ -49,7 +49,7 @@ test.describe("issue #4 — API auth (register / login / current-user)", () => {
     await mkdir(dirname(`${SCREENSHOT_DIR}/_keep`), { recursive: true });
   });
 
-  test("Scenario 2: duplicate email returns 422 with spec-shaped error", async () => {
+  test("Scenario 2: duplicate email returns 409 with spec-shaped error", async () => {
     const id = uniq();
     const api = await request.newContext({ baseURL: API_URL });
     const email = `dupe-${id}@jake.jake`;
@@ -61,7 +61,8 @@ test.describe("issue #4 — API auth (register / login / current-user)", () => {
     const dup = await api.post("/api/users", {
       data: { user: { username: `two-${id}`, email, password: "jakejake" } },
     });
-    expect(dup.status()).toBe(422);
+    // Spec: duplicate on register is a state conflict → 409. Per #66.
+    expect(dup.status()).toBe(409);
     const body = (await dup.json()) as { errors: { email?: string[] } };
     expect(body.errors.email).toEqual(["has already been taken"]);
   });

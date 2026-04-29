@@ -28,11 +28,12 @@ type UserEnvelope = {
 
 type ApiErrors = { errors?: Record<string, string[]> };
 
-// Map the API's 422 `{ errors: { email: ["has already been taken"] } }`
-// into conform-to's `{ field: [msg] }` shape, keying every error under
-// the form's canonical field name so the inline error element renders
-// next to the right input. Unknown keys (e.g. the API's generic "body"
-// validation failures) surface on the form root.
+// Map the API's field-keyed error envelope (422 for validation, 409
+// for duplicate on register) into conform-to's `{ field: [msg] }`
+// shape, keying every error under the form's canonical field name so
+// the inline error element renders next to the right input. Unknown
+// keys (e.g. the API's generic "body" validation failures) surface
+// on the form root.
 const mergeApiErrors = (
   api: ApiErrors,
   knownFields: readonly string[],
@@ -66,7 +67,10 @@ export const registerAction = async (
   });
 
   if (!res.ok) {
-    if (res.status === 422) {
+    // 409 = duplicate username/email (per #66), 422 = other field
+    // validation. Both carry the same `{errors:{field:[msg]}}` shape
+    // so the field-error mapping is identical.
+    if (res.status === 409 || res.status === 422) {
       return submission.reply({
         fieldErrors: mergeApiErrors(res.data, ["username", "email", "password"]),
       });
