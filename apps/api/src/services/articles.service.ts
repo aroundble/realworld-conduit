@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import type { Prisma } from "@prisma/client";
+import { computeReadTimeMinutes } from "../lib/read-time.js";
 import { prisma } from "../prisma/client.js";
 
 // Adapted from gothinkster/node-express-prisma-v1-official-app @ 6ac99ea5
@@ -29,6 +30,11 @@ export type ArticleEnvelope = {
   updatedAt: string;
   favorited: boolean;
   favoritesCount: number;
+  // Estimated reading time in minutes (#125). Computed from the
+  // article body on every envelope build — cheap whitespace split +
+  // ceil(words/238). Server-side so every client (web, Bruno,
+  // integrators) surfaces the same value without re-implementing.
+  readingTimeMinutes: number;
   author: {
     username: string;
     bio: string | null;
@@ -106,6 +112,7 @@ const toEnvelope = (
   updatedAt: article.updatedAt.toISOString(),
   favorited: article.favoritedBy.length > 0,
   favoritesCount: article._count.favoritedBy,
+  readingTimeMinutes: computeReadTimeMinutes(article.body),
   author: {
     username: article.author.username,
     bio: article.author.bio,
@@ -135,6 +142,7 @@ const toListItem = (
     updatedAt: envelope.updatedAt,
     favorited: envelope.favorited,
     favoritesCount: envelope.favoritesCount,
+    readingTimeMinutes: envelope.readingTimeMinutes,
     author: envelope.author,
   };
 };

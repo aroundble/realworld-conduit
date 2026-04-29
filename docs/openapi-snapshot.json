@@ -291,6 +291,10 @@
             "type": "integer",
             "minimum": 0
           },
+          "readingTimeMinutes": {
+            "type": "integer",
+            "exclusiveMinimum": 0
+          },
           "author": {
             "$ref": "#/components/schemas/ArticleAuthor"
           }
@@ -304,6 +308,7 @@
           "updatedAt",
           "favorited",
           "favoritesCount",
+          "readingTimeMinutes",
           "author"
         ]
       },
@@ -381,6 +386,10 @@
             "type": "integer",
             "minimum": 0
           },
+          "readingTimeMinutes": {
+            "type": "integer",
+            "exclusiveMinimum": 0
+          },
           "author": {
             "$ref": "#/components/schemas/ArticleAuthor"
           }
@@ -395,6 +404,7 @@
           "updatedAt",
           "favorited",
           "favoritesCount",
+          "readingTimeMinutes",
           "author"
         ]
       },

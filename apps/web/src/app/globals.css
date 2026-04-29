@@ -388,3 +388,17 @@ footer .attribution {
 .empty-state-actions a:hover {
   color: var(--conduit-green-dark);
 }
+
+/* ── Read-time badge (#125) ───────────────────────────────────
+ * Secondary meta strip marker. #55595c on white yields ~7:1
+ * contrast, WCAG AA-safe, matching .empty-state-body. Visually
+ * still secondary to the bold author name. Canonical RealWorld
+ * `.date` uses #bbb which silently fails AA (#90-class regression);
+ * read-time starts correct-by-default.
+ */
+.article-meta .read-time {
+  margin-left: 0.5rem;
+  color: #55595c;
+  font-size: 0.8rem;
+  font-weight: 300;
+}

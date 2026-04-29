@@ -31,6 +31,8 @@ export type Article = {
   updatedAt: string;
   favorited: boolean;
   favoritesCount: number;
+  // Server-computed read-time estimate (#125). Always ≥ 1.
+  readingTimeMinutes: number;
   author: {
     username: string;
     bio: string | null;
