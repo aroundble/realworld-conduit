@@ -1,6 +1,7 @@
 "use client";
 
 import { useOptimistic, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import {
   favoriteArticle,
   unfavoriteArticle,
@@ -36,6 +37,7 @@ export const FavoriteButton = ({
     }),
   );
   const [isPending, startTransition] = useTransition();
+  const router = useRouter();
 
   const onClick = () => {
     if (disabled) return;
@@ -47,6 +49,11 @@ export const FavoriteButton = ({
       } else {
         await unfavoriteArticle(slug);
       }
+      // Drive the refetch from the client so it runs strictly after
+      // the action's DB write has returned — avoids the optimistic /
+      // revalidate race in #76 where Follow's revalidation could
+      // arrive mid-Favorite-transition and flash stale state.
+      router.refresh();
     });
   };
 

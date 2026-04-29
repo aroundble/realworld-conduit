@@ -1,6 +1,5 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { apiFetch } from "@/lib/api/client";
 import { readSessionCookie, SESSION_COOKIE } from "@/features/auth/session";
 
@@ -11,6 +10,10 @@ import { readSessionCookie, SESSION_COOKIE } from "@/features/auth/session";
 // generic exception. deleteComment throws on failure — the client
 // component treats any error as "stay put, show the row", which is
 // the right UX for a trash-icon click that fails.
+//
+// Refetch-after-action is driven by the calling client component via
+// `router.refresh()` so the ordering is strict (DB write → refresh);
+// see #76 for the race this mirrors.
 
 const cookieHeader = async (): Promise<string | undefined> => {
   const token = await readSessionCookie();
@@ -56,8 +59,6 @@ export const postCommentAction = async (
       : ["Failed to post comment"];
     return { ok: false, errors: flat };
   }
-
-  revalidatePath(`/article/[slug]`, "page");
   return { ok: true };
 };
 
@@ -73,5 +74,4 @@ export const deleteComment = async (
   if (!res.ok) {
     throw new Error(`deleteComment failed: ${res.status}`);
   }
-  revalidatePath(`/article/[slug]`, "page");
 };
