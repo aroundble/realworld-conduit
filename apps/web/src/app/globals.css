@@ -4,18 +4,30 @@
  * RealWorld canonical look. The Conduit style guide ships a global
  * stylesheet that the spec's acceptance tests (and every reference
  * implementation) sniff for: Source Sans Pro body font, green
- * (#5cb85c) navbar active colour, and a dark-green banner on the
- * home page. Tailwind handles layout + utilities; this companion
- * layer pins the spec-mandated classes so `.navbar`, `.home-page
- * .banner`, and `.tag-pill` render to spec no matter which page
- * references them.
+ * navbar active colour, and a green banner on the home page.
+ * Tailwind handles layout + utilities; this companion layer pins
+ * the spec-mandated classes so `.navbar`, `.home-page .banner`,
+ * and `.tag-pill` render to spec no matter which page references
+ * them.
+ *
+ * Palette deviation (#90): the canonical demo greens (#5cb85c brand,
+ * banner #5cb85c, inactive nav-link rgba(0,0,0,0.3)) fail WCAG AA
+ * contrast on white. We deviate to darker variants that preserve
+ * the "fresh / action" character but pass the AA gate. The demo
+ * remains the UX/IA reference; only the hex values change. See
+ * ADR 000 §10 for the visual-parity rationale.
  */
 
 :root {
-  --conduit-green: #5cb85c;
-  --conduit-green-dark: #4aa14a;
-  --conduit-banner-bg: #5cb85c;
-  --conduit-banner-shadow: #3d8b3d;
+  /* One brand green for every surface that carries the Conduit
+     accent — links, navbar-brand, .btn-primary background (with
+     white text on it), banner. #2c7a2c yields ratio 5.41 against
+     white (passes AA 4.5 both ways: dark-on-white text and
+     white-on-dark text). Canonical #5cb85c scored 2.48. */
+  --conduit-green: #2c7a2c;
+  --conduit-green-dark: #1d5a1d;
+  --conduit-banner-bg: #2c7a2c;
+  --conduit-banner-shadow: #1d5a1d;
 }
 
 body {
@@ -38,6 +50,19 @@ a {
 a:hover,
 a:focus {
   color: var(--conduit-green-dark);
+  text-decoration: underline;
+}
+
+/* Underline for inline-text anchors inside prose regions. WCAG 1.4.1
+   (link-in-text-block) forbids distinguishing a link from surrounding
+   text by colour alone unless the contrast is ≥ 3:1. Our link colour
+   vs body text (#2c7a2c vs #373a3c) sits at 1.84, so prose links need
+   underline to pass. Scoped to article/comment prose regions rather
+   than global-`a` to preserve the spec's chrome look (nav links, tag
+   pills, buttons use anchors that are not "inline text in prose"). */
+.article-page p a,
+.article-body a,
+[aria-label="Comments"] p a {
   text-decoration: underline;
 }
 
@@ -86,7 +111,9 @@ a:focus {
 }
 
 .nav-link {
-  color: rgba(0, 0, 0, 0.3);
+  /* #595959 = rgba(0,0,0,0.65) equivalent — passes AA (ratio 7.0)
+     on the white navbar. Canonical rgba(0,0,0,0.3) scored 2.09. */
+  color: #595959;
   padding: 0.5rem 0.5rem;
   transition: color 120ms ease;
 }
@@ -149,7 +176,9 @@ a:focus {
   display: inline-block;
   padding: 0.1rem 0.6rem;
   border-radius: 10rem;
-  background: #818a91;
+  /* #595959 on white text → ratio 7.0 (AA). Canonical #818a91
+     scored 3.0 — below AA 4.5. Same grey as nav-link / footer. */
+  background: #595959;
   color: #ffffff;
   font-size: 0.8rem;
   margin-right: 3px;
@@ -157,8 +186,10 @@ a:focus {
 
 .tag-outline {
   background: transparent;
-  border: 1px solid #818a91;
-  color: #818a91;
+  /* Grey text on white surface: #595959 → ratio 7.0 (AA).
+     Canonical #818a91 scored ~3.0. */
+  border: 1px solid #595959;
+  color: #595959;
 }
 
 /* ── Footer ─────────────────────────────────────────────────── */
@@ -181,7 +212,9 @@ footer .logo-font {
 }
 
 footer .attribution {
-  color: #bbb;
+  /* #595959 on the #f3f3f3 footer bg → ratio 6.7, passes AA.
+     Canonical #bbb scored ~1.9. */
+  color: #595959;
   font-size: 0.8rem;
 }
 
