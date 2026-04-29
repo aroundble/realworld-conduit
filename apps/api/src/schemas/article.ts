@@ -27,13 +27,23 @@ export const ArticleSchema = z
   })
   .openapi("Article");
 
+// List-envelope entries omit `body`. RealWorld spec differentiates the
+// *single-article* GET (`GET /api/articles/:slug`) from the list
+// endpoints: the single response carries the full body, list responses
+// don't, so clients reading a homepage feed avoid paying per-article
+// markdown cost. See #63 / the canonical Bruno assertions under
+// `articles/0{3..7}`, `feed/`, `favorites/`.
+export const ArticleListItemSchema = ArticleSchema.omit({ body: true }).openapi(
+  "ArticleListItem",
+);
+
 export const ArticleResponseSchema = z
   .object({ article: ArticleSchema })
   .openapi("ArticleResponse");
 
 export const ArticleListResponseSchema = z
   .object({
-    articles: z.array(ArticleSchema),
+    articles: z.array(ArticleListItemSchema),
     articlesCount: z.number().int().nonnegative(),
   })
   .openapi("ArticleListResponse");

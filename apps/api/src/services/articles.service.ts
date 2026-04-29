@@ -37,6 +37,10 @@ export type ArticleEnvelope = {
   };
 };
 
+// List envelopes drop the `body` field per the RealWorld spec — only
+// `GET /api/articles/:slug` is meant to return it. See #63.
+export type ArticleListItem = Omit<ArticleEnvelope, "body">;
+
 export class ArticleError extends Error {
   constructor(
     public readonly field: string,
@@ -112,6 +116,28 @@ const toEnvelope = (
       article.author.followedBy.some((f) => f.id === viewerId),
   },
 });
+
+// List endpoints use the same envelope shape minus `body`. Reuse the
+// full `toEnvelope` so the projection stays in one place, then project
+// out `body` — the type annotation catches any later envelope-shape
+// change that would otherwise silently re-include it.
+const toListItem = (
+  article: ArticleWithIncludes,
+  viewerId: number | null,
+): ArticleListItem => {
+  const envelope = toEnvelope(article, viewerId);
+  return {
+    slug: envelope.slug,
+    title: envelope.title,
+    description: envelope.description,
+    tagList: envelope.tagList,
+    createdAt: envelope.createdAt,
+    updatedAt: envelope.updatedAt,
+    favorited: envelope.favorited,
+    favoritesCount: envelope.favoritesCount,
+    author: envelope.author,
+  };
+};
 
 // Caller always knows the viewer; we thread it into the `favoritedBy`
 // where-clause so the include only returns the viewer's own favorite
@@ -286,7 +312,7 @@ export type FeedFilters = {
 };
 
 export type ListArticlesResult = {
-  articles: ArticleEnvelope[];
+  articles: ArticleListItem[];
   articlesCount: number;
 };
 
@@ -330,7 +356,7 @@ export const listArticles = async (
   ]);
 
   return {
-    articles: rows.map((row) => toEnvelope(row, viewerId)),
+    articles: rows.map((row) => toListItem(row, viewerId)),
     articlesCount,
   };
 };
@@ -360,7 +386,7 @@ export const feedArticles = async (
   ]);
 
   return {
-    articles: rows.map((row) => toEnvelope(row, viewerId)),
+    articles: rows.map((row) => toListItem(row, viewerId)),
     articlesCount,
   };
 };

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { Article } from "@/features/articles/queries";
+import type { ArticleListItem } from "@/features/articles/queries";
 
 // Pattern adapted from yukicountry/realworld-nextjs-rsc @ f455599f
 // (`src/modules/features/article/preview-card.tsx`, MIT). The favorite
@@ -10,7 +10,7 @@ import type { Article } from "@/features/articles/queries";
 // globals.css works without overrides.
 
 type Props = {
-  article: Article;
+  article: ArticleListItem;
 };
 
 const formatDate = (iso: string): string =>
