@@ -2,6 +2,7 @@
 
 import { useOptimistic, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { followAuthor, unfollowAuthor } from "@/features/articles/actions";
 
 // Client toggle for follow/unfollow. useOptimistic lets the label +
@@ -36,12 +37,23 @@ export const FollowButton = ({ username, following, disabled }: Props) => {
     const next = !optimisticFollowing;
     startTransition(async () => {
       setOptimisticFollowing(next);
-      if (next) {
-        await followAuthor(username);
-      } else {
-        await unfollowAuthor(username);
+      try {
+        if (next) {
+          await followAuthor(username);
+        } else {
+          await unfollowAuthor(username);
+        }
+        router.refresh();
+      } catch {
+        // Server 5xx / network error: useOptimistic reverts the label
+        // automatically; surface a toast so the user sees why the
+        // button snapped back (#115).
+        toast.error(
+          next
+            ? `Couldn't follow @${username} — please try again`
+            : `Couldn't unfollow @${username} — please try again`,
+        );
       }
-      router.refresh();
     });
   };
 
