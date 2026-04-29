@@ -1,4 +1,5 @@
 import { OpenAPIHono } from "@hono/zod-openapi";
+import { Scalar } from "@scalar/hono-api-reference";
 import type { Context } from "hono";
 import type { ZodIssue } from "zod";
 import { corsMiddleware } from "./middleware/cors.js";
@@ -56,15 +57,40 @@ export const createApp = (): OpenAPIHono<AppEnv> => {
   registerTagsRoutes(app);
   registerInternalThrowRoute(app);
 
-  app.doc("/docs/json", {
+  // Two doc surfaces (#123):
+  //   - `/api/openapi.json` — machine-readable OpenAPI 3.1 spec,
+  //     consumed by Swagger UI / Scalar / code generators.
+  //   - `/api/docs` — Scalar-rendered API reference, public-readable
+  //     for contributors + integrators.
+  //
+  // `/docs/json` is kept as a legacy alias so early links in the
+  // docs tree (if any) don't break.
+  const openapiConfig = {
     openapi: "3.1.0",
     info: {
       title: "RealWorld Conduit API",
-      version: "0.0.0",
+      version: process.env.npm_package_version ?? "0.0.0",
       description:
         "RealWorld spec-conformant API. Routes are added per feature.",
     },
-  });
+    servers: [
+      {
+        url: process.env.OPENAPI_HOST ?? "http://localhost:3001",
+        description: "API host",
+      },
+    ],
+  };
+  app.doc("/api/openapi.json", openapiConfig);
+  app.doc("/docs/json", openapiConfig);
+
+  app.get(
+    "/api/docs",
+    Scalar({
+      url: "/api/openapi.json",
+      theme: "default",
+      pageTitle: "Conduit API",
+    }),
+  );
 
   app.notFound((c) => c.json({ errors: { body: ["not found"] } }, 404));
 
