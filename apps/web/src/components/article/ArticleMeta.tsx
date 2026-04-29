@@ -30,15 +30,18 @@ export const ArticleMeta = ({ article, viewerUsername, authed }: Props) => {
 
   return (
     <div className="article-meta">
-      <Link href={profileHref}>
-        {article.author.image ? (
-          // Remote user-supplied avatar URLs don't belong in next/image's
-          // domains allowlist; the bitmap is tiny (32–64 px) and cached
-          // by the browser. Matches the pattern in Navbar / ArticlePreview.
-          // eslint-disable-next-line @next/next/no-img-element
+      {article.author.image ? (
+        <Link
+          href={profileHref}
+          aria-label={`${article.author.username} profile`}
+        >
+          {/* Remote user-supplied avatar URLs don't belong in next/image's
+              domains allowlist; the bitmap is tiny (32–64 px) and cached
+              by the browser. Matches the pattern in Navbar / ArticlePreview. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={article.author.image} alt={`${article.author.username} avatar`} />
-        ) : null}
-      </Link>
+        </Link>
+      ) : null}
       <div className="info">
         <Link href={profileHref} className="author">
           {article.author.username}

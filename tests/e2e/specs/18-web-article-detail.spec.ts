@@ -1,4 +1,5 @@
 import { expect, request, test, type BrowserContext } from "@playwright/test";
+import { runAxe } from "../axe-config";
 
 // BDD coverage for issue #18: article detail page with markdown,
 // comments, follow/favorite, author delete, and graceful 404.
@@ -321,4 +322,15 @@ test.describe("issue #18 — article detail page", () => {
     expect(res?.status()).toBe(404);
     await expect(page.locator("body")).toContainText("Article not found");
   });
+});
+
+test("axe a11y gate on article detail (#87)", async ({ page }) => {
+  const jakeApi = await apiContext();
+  await registerUser(jakeApi, `jake-${uniq()}`);
+  const { slug } = await createArticle(jakeApi, {
+    title: `Axe ${uniq()}`,
+    body: "Hello body.",
+  });
+  await page.goto(`${WEB_URL}/article/${slug}`);
+  await runAxe(page);
 });

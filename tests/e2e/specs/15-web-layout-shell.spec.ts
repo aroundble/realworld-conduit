@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { mkdir } from "node:fs/promises";
+import { runAxe } from "../axe-config";
 
 const SCREENSHOT_DIR = "tests/e2e/screenshots/15";
 const AUTH_COOKIE_NAME = "conduit-user";
@@ -131,4 +132,11 @@ test("canonical RealWorld styling — Source Sans Pro + green navbar + banner", 
   expect(bannerBg).toBe("rgb(92, 184, 92)");
 
   await page.screenshot({ path: `${SCREENSHOT_DIR}/scenario-5-styling.png` });
+});
+
+test("axe a11y gate on layout-shell anon routes (#87)", async ({ page }) => {
+  for (const path of PROTECTED_ROUTES) {
+    await page.goto(path);
+    await runAxe(page);
+  }
 });

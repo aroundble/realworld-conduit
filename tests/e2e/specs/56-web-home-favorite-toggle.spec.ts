@@ -4,6 +4,7 @@ import {
   test,
   type BrowserContext,
 } from "@playwright/test";
+import { runAxe } from "../axe-config";
 
 // BDD coverage for issue #56: interactive favorite toggle on the
 // homepage ArticlePreview card. Four scenarios from the issue body.
@@ -258,4 +259,13 @@ test.describe("issue #56 — homepage favorite toggle", () => {
     );
     expect(favPostSeen).toBe(false);
   });
+});
+
+test("axe a11y gate on homepage with articles (#87)", async ({ page }) => {
+  const id = uniq();
+  const jakeApi = await apiContext();
+  await registerUser(jakeApi, `jake-${id}`);
+  await createArticle(jakeApi, `Axe ${id}`);
+  await page.goto(`${WEB_URL}/`);
+  await runAxe(page);
 });

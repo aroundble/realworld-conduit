@@ -1,4 +1,5 @@
 import { expect, request, test } from "@playwright/test";
+import { runAxe } from "../axe-config";
 
 // BDD coverage for issue #17 (rescoped by Audit E.1, 2026-04-29):
 // static RSC homepage — banner, feed tabs, article preview cards,
@@ -275,4 +276,9 @@ test.describe("issue #17 — web homepage (RSC walking skeleton)", () => {
       "No articles are here... yet.",
     );
   });
+});
+
+test("axe a11y gate on homepage (#87)", async ({ page }) => {
+  await page.goto(`${WEB_URL}/`);
+  await runAxe(page);
 });
