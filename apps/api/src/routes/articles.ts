@@ -5,7 +5,9 @@ import {
   ArticleError,
   createArticle,
   deleteArticle,
+  favoriteArticle,
   getArticleBySlug,
+  unfavoriteArticle,
   updateArticle,
 } from "../services/articles.service.js";
 import { optionalAuth, requireAuth, type UserVars } from "../middleware/jwt-cookie.js";
@@ -135,6 +137,50 @@ const deleteArticleRoute = createRoute({
   },
 });
 
+const favoriteRoute = createRoute({
+  method: "post",
+  path: "/api/articles/{slug}/favorite",
+  tags: ["articles"],
+  summary: "Favorite an article",
+  request: { params: SlugParam },
+  responses: {
+    200: {
+      description: "Favorited (or already favorited — idempotent)",
+      content: { "application/json": { schema: ArticleResponseSchema } },
+    },
+    401: {
+      description: "Unauthorized",
+      content: { "application/json": { schema: ErrorResponseSchema } },
+    },
+    404: {
+      description: "Not found",
+      content: { "application/json": { schema: ErrorResponseSchema } },
+    },
+  },
+});
+
+const unfavoriteRoute = createRoute({
+  method: "delete",
+  path: "/api/articles/{slug}/favorite",
+  tags: ["articles"],
+  summary: "Unfavorite an article",
+  request: { params: SlugParam },
+  responses: {
+    200: {
+      description: "Unfavorited (or was never favorited — idempotent)",
+      content: { "application/json": { schema: ArticleResponseSchema } },
+    },
+    401: {
+      description: "Unauthorized",
+      content: { "application/json": { schema: ErrorResponseSchema } },
+    },
+    404: {
+      description: "Not found",
+      content: { "application/json": { schema: ErrorResponseSchema } },
+    },
+  },
+});
+
 export const registerArticleRoutes = (app: OpenAPIHono<AppEnv>): void => {
   const authed = app as unknown as OpenAPIHono<ArticleEnv>;
 
@@ -204,6 +250,41 @@ export const registerArticleRoutes = (app: OpenAPIHono<AppEnv>): void => {
       if (err instanceof ArticleError) {
         if (err.status === 404) return c.json(jsonError(err.field, err.detail), 404);
         if (err.status === 403) return c.json(jsonError(err.field, err.detail), 403);
+      }
+      throw err;
+    }
+  });
+
+  // Favorite + unfavorite share `/api/articles/{slug}/favorite`; the
+  // shared path is disjoint from the `/api/articles/{slug}` surface
+  // that `optionalAuth()` already covers, so mounting `requireAuth()`
+  // here is safe — it only affects POST + DELETE on this sub-path.
+  authed.use(favoriteRoute.getRoutingPath(), requireAuth());
+  authed.openapi(favoriteRoute, async (c) => {
+    const viewer = c.get("user");
+    if (!viewer) return c.json(jsonError("auth", "Unauthorized"), 401);
+    const { slug } = c.req.valid("param");
+    try {
+      const envelope = await favoriteArticle(viewer.id, slug);
+      return c.json({ article: envelope }, 200);
+    } catch (err) {
+      if (err instanceof ArticleError && err.status === 404) {
+        return c.json(jsonError(err.field, err.detail), 404);
+      }
+      throw err;
+    }
+  });
+
+  authed.openapi(unfavoriteRoute, async (c) => {
+    const viewer = c.get("user");
+    if (!viewer) return c.json(jsonError("auth", "Unauthorized"), 401);
+    const { slug } = c.req.valid("param");
+    try {
+      const envelope = await unfavoriteArticle(viewer.id, slug);
+      return c.json({ article: envelope }, 200);
+    } catch (err) {
+      if (err instanceof ArticleError && err.status === 404) {
+        return c.json(jsonError(err.field, err.detail), 404);
       }
       throw err;
     }

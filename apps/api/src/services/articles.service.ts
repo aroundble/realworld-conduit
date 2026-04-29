@@ -7,8 +7,13 @@ import { prisma } from "../prisma/client.js";
 //   - `createArticle`: upstream computes `slug = slugify(title) + "-" + rand`
 //     and upserts tags; we keep the same shape.
 //   - `getArticle`: upstream includes author + favorites count + viewer-
-//     relative flags; we ship placeholders (favoritesCount:0, favorited:false)
-//     until Feature 12 adds real favorite tracking.
+//     relative flags. Since #12 we include real favorites: `_count.favoritedBy`
+//     gives `favoritesCount`, and a narrow `favoritedBy` include against the
+//     viewer computes `favorited` (empty array for anonymous viewers).
+//   - `favoriteArticle` / `unfavoriteArticle`: upstream does
+//     `user.update({ favorites: { connect / disconnect } })`. We do the same,
+//     with an explicit 404-if-missing guard before the connect (upstream
+//     relies on Prisma throwing P2025 which we surface uniformly).
 //
 // Tag upsert uses Prisma's `connectOrCreate`, so the first article that
 // mentions a tag creates it and subsequent articles reuse the row —
@@ -61,13 +66,31 @@ const slugify = (input: string): string =>
 const suffix = (): string =>
   randomBytes(3).toString("base64url").slice(0, 4).toLowerCase().replace(/[^a-z0-9]/g, "x");
 
+// Every article-returning endpoint must fetch with this include shape
+// so `toEnvelope` has what it needs for both `following` (viewer-relative
+// follow of author) and `favorited` / `favoritesCount` (viewer-relative
+// favorite + total count). Exported so the route handlers in
+// `routes/articles.ts` can reuse it without drifting the shape.
+export const articleInclude = {
+  tagList: true,
+  author: { include: { followedBy: { select: { id: true } } } },
+  _count: { select: { favoritedBy: true } },
+  // Narrowed favoritedBy include: when `viewerId` is a real user we
+  // filter to just that user's row (0 or 1 result, no count scan needed).
+  // Anonymous viewers pass an id that can never match so the include
+  // stays harmless and returns an empty array.
+  favoritedBy: {
+    where: { id: -1 },
+    select: { id: true },
+  },
+} as const;
+
+type ArticleWithIncludes = Prisma.ArticleGetPayload<{
+  include: typeof articleInclude;
+}>;
+
 const toEnvelope = (
-  article: Prisma.ArticleGetPayload<{
-    include: {
-      tagList: true;
-      author: { include: { followedBy: { select: { id: true } } } };
-    };
-  }>,
+  article: ArticleWithIncludes,
   viewerId: number | null,
 ): ArticleEnvelope => ({
   slug: article.slug,
@@ -77,10 +100,8 @@ const toEnvelope = (
   tagList: article.tagList.map((t) => t.name).sort(),
   createdAt: article.createdAt.toISOString(),
   updatedAt: article.updatedAt.toISOString(),
-  // Favorite tracking lands in #12 — until then the envelope shape is
-  // still complete but always reports "not favorited" with zero count.
-  favorited: false,
-  favoritesCount: 0,
+  favorited: article.favoritedBy.length > 0,
+  favoritesCount: article._count.favoritedBy,
   author: {
     username: article.author.username,
     bio: article.author.bio,
@@ -89,6 +110,17 @@ const toEnvelope = (
       viewerId !== null &&
       article.author.id !== viewerId &&
       article.author.followedBy.some((f) => f.id === viewerId),
+  },
+});
+
+// Caller always knows the viewer; we thread it into the `favoritedBy`
+// where-clause so the include only returns the viewer's own favorite
+// row if any. Keeps the query narrow regardless of total fav count.
+const includeFor = (viewerId: number | null) => ({
+  ...articleInclude,
+  favoritedBy: {
+    where: { id: viewerId ?? -1 },
+    select: { id: true },
   },
 });
 
@@ -124,10 +156,7 @@ export const createArticle = async (
         })),
       },
     },
-    include: {
-      tagList: true,
-      author: { include: { followedBy: { select: { id: true } } } },
-    },
+    include: includeFor(authorId),
   });
 
   return toEnvelope(article, authorId);
@@ -139,10 +168,7 @@ export const getArticleBySlug = async (
 ): Promise<ArticleEnvelope> => {
   const article = await prisma.article.findUnique({
     where: { slug },
-    include: {
-      tagList: true,
-      author: { include: { followedBy: { select: { id: true } } } },
-    },
+    include: includeFor(viewerId),
   });
   if (!article) {
     throw new ArticleError("article", "not found", 404);
@@ -167,8 +193,8 @@ export type UpdateArticleInput = {
 //      different suffix if Postgres returns P2002 on slug.
 // `updatedAt` is set explicitly because the schema's `updatedAt` column
 // has `@default(now())` but no `@updatedAt` directive (inherited from
-// upstream); Prisma won't bump it on plain updates. AC scenario 1
-// requires `updatedAt > createdAt`, which this write enforces.
+// upstream); Prisma won't bump it on plain updates. AC scenario 1 of
+// issue #9 requires `updatedAt > createdAt`, which this write enforces.
 export const updateArticle = async (
   viewerId: number,
   slug: string,
@@ -197,10 +223,7 @@ export const updateArticle = async (
   const updated = await prisma.article.update({
     where: { id: existing.id },
     data,
-    include: {
-      tagList: true,
-      author: { include: { followedBy: { select: { id: true } } } },
-    },
+    include: includeFor(viewerId),
   });
   return toEnvelope(updated, viewerId);
 };
@@ -221,4 +244,54 @@ export const deleteArticle = async (
   // (_UserFavorites) are cleared by Prisma automatically when the owning
   // row goes away — no manual cleanup needed.
   await prisma.article.delete({ where: { id: existing.id } });
+};
+
+export const favoriteArticle = async (
+  viewerId: number,
+  slug: string,
+): Promise<ArticleEnvelope> => {
+  const existing = await prisma.article.findUnique({
+    where: { slug },
+    select: { id: true },
+  });
+  if (!existing) {
+    throw new ArticleError("article", "not found", 404);
+  }
+  // user.update with favorites.connect is idempotent in Prisma: calling
+  // connect for a row already in the relation is a no-op and does not
+  // duplicate the join row. That means scenario 2's count-stays-1
+  // assertion falls out naturally — no extra guard needed here.
+  await prisma.user.update({
+    where: { id: viewerId },
+    data: { favorites: { connect: { id: existing.id } } },
+  });
+  const article = await prisma.article.findUniqueOrThrow({
+    where: { id: existing.id },
+    include: includeFor(viewerId),
+  });
+  return toEnvelope(article, viewerId);
+};
+
+export const unfavoriteArticle = async (
+  viewerId: number,
+  slug: string,
+): Promise<ArticleEnvelope> => {
+  const existing = await prisma.article.findUnique({
+    where: { slug },
+    select: { id: true },
+  });
+  if (!existing) {
+    throw new ArticleError("article", "not found", 404);
+  }
+  // `disconnect` is also idempotent; calling it when the row isn't in
+  // the relation is a no-op.
+  await prisma.user.update({
+    where: { id: viewerId },
+    data: { favorites: { disconnect: { id: existing.id } } },
+  });
+  const article = await prisma.article.findUniqueOrThrow({
+    where: { id: existing.id },
+    include: includeFor(viewerId),
+  });
+  return toEnvelope(article, viewerId);
 };
