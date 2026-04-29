@@ -2,6 +2,7 @@
 
 import { useOptimistic, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import {
   favoriteArticle,
   unfavoriteArticle,
@@ -71,8 +72,10 @@ export const FavoriteButton = ({
         // the pending optimistic value on throw and restore the last
         // committed props — so the UI reverts automatically. Flag the
         // error so the AC scenario-3 assertion can observe the revert +
-        // error indication.
+        // error indication, and surface a toast so the user sees *why*
+        // (#115).
         setErrored(true);
+        toast.error("Couldn't favorite — please try again");
       }
     });
   };
