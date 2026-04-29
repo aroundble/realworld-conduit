@@ -7,6 +7,7 @@ import {
   createArticle,
   deleteArticle,
   favoriteArticle,
+  feedArticles,
   getArticleBySlug,
   listArticles,
   unfavoriteArticle,
@@ -20,6 +21,29 @@ import {
   CreateArticleRequestSchema,
   UpdateArticleRequestSchema,
 } from "../schemas/article.js";
+
+// Feed shares the ArticleListResponseSchema envelope with the list
+// endpoint. Limit / offset caps live in the zod layer (same 100
+// ceiling the reference frontends assume); rejecting over-limit here
+// keeps response times bounded.
+const FEED_DEFAULT_LIMIT = 20;
+const FEED_MAX_LIMIT = 100;
+
+const FeedQuery = z
+  .object({
+    limit: z.coerce
+      .number()
+      .int()
+      .min(1, "must be at least 1")
+      .max(FEED_MAX_LIMIT, `must be at most ${FEED_MAX_LIMIT}`)
+      .optional(),
+    offset: z.coerce
+      .number()
+      .int()
+      .min(0, "must be at least 0")
+      .optional(),
+  })
+  .openapi("FeedQuery");
 
 type ArticleVars = AppEnv["Variables"] & UserVars;
 type ArticleEnv = { Variables: ArticleVars };
@@ -68,6 +92,28 @@ const listArticlesRoute = createRoute({
     200: {
       description: "Articles + total count",
       content: { "application/json": { schema: ArticleListResponseSchema } },
+    },
+    422: {
+      description: "Unprocessable entity",
+      content: { "application/json": { schema: ErrorResponseSchema } },
+    },
+  },
+});
+
+const feedRoute = createRoute({
+  method: "get",
+  path: "/api/articles/feed",
+  tags: ["articles"],
+  summary: "Personalised feed — articles by followed authors",
+  request: { query: FeedQuery },
+  responses: {
+    200: {
+      description: "Feed articles + total count — shape-identical to /api/articles",
+      content: { "application/json": { schema: ArticleListResponseSchema } },
+    },
+    401: {
+      description: "Unauthorized",
+      content: { "application/json": { schema: ErrorResponseSchema } },
     },
     422: {
       description: "Unprocessable entity",
@@ -228,6 +274,21 @@ const unfavoriteRoute = createRoute({
 
 export const registerArticleRoutes = (app: OpenAPIHono<AppEnv>): void => {
   const authed = app as unknown as OpenAPIHono<ArticleEnv>;
+
+  // Register feed BEFORE the {slug} routes. Hono's trie router does
+  // prefer static segments over params, but registering feed first is
+  // defensive — if future route registrations ever shift that, the
+  // explicit order wins.
+  authed.use(feedRoute.getRoutingPath(), requireAuth());
+  authed.openapi(feedRoute, async (c) => {
+    const viewer = c.get("user");
+    if (!viewer) return c.json(jsonError("auth", "Unauthorized"), 401);
+    const q = c.req.valid("query");
+    const limit = q.limit ?? FEED_DEFAULT_LIMIT;
+    const offset = q.offset ?? 0;
+    const result = await feedArticles(viewer.id, { limit, offset });
+    return c.json(result, 200);
+  });
 
   // GET /api/articles (list) and POST /api/articles (create) share the
   // same path, and Hono's `app.use(path, mw)` is method-agnostic —
