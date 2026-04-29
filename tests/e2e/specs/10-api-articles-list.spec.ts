@@ -1,8 +1,12 @@
 import { expect, request, test } from "@playwright/test";
+import { ArticlesApi } from "../page-objects/articles";
 
 // BDD coverage for issue #10: GET /api/articles with filters + pagination.
 // Seven AC scenarios. Each test seeds distinctly-named users / tags /
 // titles so it can run alongside other specs without cross-contamination.
+//
+// #96 Phase 2 refactor: API helpers live in `ArticlesApi` now (each
+// spec previously had its own local `registerUser` / `createArticle`).
 
 const API_URL =
   process.env.API_URL ??
@@ -11,48 +15,20 @@ const API_URL =
 
 const uniq = () => `${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
 
-const registerUser = async (
-  api: Awaited<ReturnType<typeof request.newContext>>,
-  username: string,
-) => {
-  const res = await api.post("/api/users", {
-    data: { user: { username, email: `${username}@jake.jake`, password: "jakejake" } },
-  });
-  expect(res.status()).toBe(201);
-};
-
-const createArticle = async (
-  api: Awaited<ReturnType<typeof request.newContext>>,
-  title: string,
-  tagList: string[] = [],
-): Promise<string> => {
-  const res = await api.post("/api/articles", {
-    data: { article: { title, description: "d", body: "b", tagList } },
-  });
-  expect(res.status()).toBe(201);
-  const body = (await res.json()) as { article: { slug: string } };
-  return body.article.slug;
-};
-
 test.describe("issue #10 — API GET /api/articles", () => {
   test("Scenario 1: default list returns newest first + articlesCount", async () => {
     const id = uniq();
     const jake = `jake-${id}`;
-    const api = await request.newContext({ baseURL: API_URL });
-    await registerUser(api, jake);
+    const api = await ArticlesApi.newContext();
+    await api.registerUser(jake);
 
-    const s1 = await createArticle(api, `A1 ${id}`);
+    const s1 = await api.createArticleReturnSlug({ title: `A1 ${id}` });
     await new Promise((r) => setTimeout(r, 20));
-    const s2 = await createArticle(api, `A2 ${id}`);
+    const s2 = await api.createArticleReturnSlug({ title: `A2 ${id}` });
     await new Promise((r) => setTimeout(r, 20));
-    const s3 = await createArticle(api, `A3 ${id}`);
+    const s3 = await api.createArticleReturnSlug({ title: `A3 ${id}` });
 
-    const res = await api.get(`/api/articles?author=${jake}`);
-    expect(res.status()).toBe(200);
-    const body = (await res.json()) as {
-      articles: Array<{ slug: string; createdAt: string }>;
-      articlesCount: number;
-    };
+    const body = await api.listArticles({ author: jake });
     expect(body.articlesCount).toBe(3);
     expect(body.articles.map((a) => a.slug)).toEqual([s3, s2, s1]);
     expect(Date.parse(body.articles[0].createdAt)).toBeGreaterThan(
@@ -66,22 +42,26 @@ test.describe("issue #10 — API GET /api/articles", () => {
   test("Scenario 2: filter by tag returns only articles carrying that tag", async () => {
     const id = uniq();
     const jake = `jake-${id}`;
-    const api = await request.newContext({ baseURL: API_URL });
-    await registerUser(api, jake);
+    const api = await ArticlesApi.newContext();
+    await api.registerUser(jake);
 
     const dragons = `dragons-${id}`;
     const training = `training-${id}`;
 
-    const slugA = await createArticle(api, `A ${id}`, [dragons]);
-    await createArticle(api, `B ${id}`, [training]);
-    const slugC = await createArticle(api, `C ${id}`, [dragons, training]);
+    const slugA = await api.createArticleReturnSlug({
+      title: `A ${id}`,
+      tagList: [dragons],
+    });
+    await api.createArticleReturnSlug({
+      title: `B ${id}`,
+      tagList: [training],
+    });
+    const slugC = await api.createArticleReturnSlug({
+      title: `C ${id}`,
+      tagList: [dragons, training],
+    });
 
-    const res = await api.get(`/api/articles?tag=${dragons}`);
-    expect(res.status()).toBe(200);
-    const body = (await res.json()) as {
-      articles: Array<{ slug: string }>;
-      articlesCount: number;
-    };
+    const body = await api.listArticles({ tag: dragons });
     expect(body.articlesCount).toBe(2);
     expect(body.articles.map((a) => a.slug).sort()).toEqual([slugA, slugC].sort());
   });
@@ -90,21 +70,16 @@ test.describe("issue #10 — API GET /api/articles", () => {
     const id = uniq();
     const jake = `jake-${id}`;
     const dan = `dan-${id}`;
-    const jakeApi = await request.newContext({ baseURL: API_URL });
-    const danApi = await request.newContext({ baseURL: API_URL });
-    await registerUser(jakeApi, jake);
-    await registerUser(danApi, dan);
+    const jakeApi = await ArticlesApi.newContext();
+    const danApi = await ArticlesApi.newContext();
+    await jakeApi.registerUser(jake);
+    await danApi.registerUser(dan);
 
-    await createArticle(jakeApi, `J1 ${id}`);
-    await createArticle(jakeApi, `J2 ${id}`);
-    await createArticle(danApi, `D1 ${id}`);
+    await jakeApi.createArticleReturnSlug({ title: `J1 ${id}` });
+    await jakeApi.createArticleReturnSlug({ title: `J2 ${id}` });
+    await danApi.createArticleReturnSlug({ title: `D1 ${id}` });
 
-    const res = await jakeApi.get(`/api/articles?author=${jake}`);
-    expect(res.status()).toBe(200);
-    const body = (await res.json()) as {
-      articles: Array<{ author: { username: string } }>;
-      articlesCount: number;
-    };
+    const body = await jakeApi.listArticles({ author: jake });
     expect(body.articlesCount).toBe(2);
     for (const a of body.articles) {
       expect(a.author.username).toBe(jake);
@@ -115,23 +90,17 @@ test.describe("issue #10 — API GET /api/articles", () => {
     const id = uniq();
     const jake = `jake-${id}`;
     const dan = `dan-${id}`;
-    const jakeApi = await request.newContext({ baseURL: API_URL });
-    const danApi = await request.newContext({ baseURL: API_URL });
-    await registerUser(jakeApi, jake);
-    await registerUser(danApi, dan);
+    const jakeApi = await ArticlesApi.newContext();
+    const danApi = await ArticlesApi.newContext();
+    await jakeApi.registerUser(jake);
+    await danApi.registerUser(dan);
 
-    const slugA = await createArticle(jakeApi, `Fav-A ${id}`);
-    await createArticle(jakeApi, `Fav-B ${id}`);
+    const slugA = await jakeApi.createArticleReturnSlug({ title: `Fav-A ${id}` });
+    await jakeApi.createArticleReturnSlug({ title: `Fav-B ${id}` });
 
-    const fav = await danApi.post(`/api/articles/${slugA}/favorite`);
-    expect(fav.status()).toBe(200);
+    await danApi.favorite(slugA);
 
-    const res = await jakeApi.get(`/api/articles?favorited=${dan}`);
-    expect(res.status()).toBe(200);
-    const body = (await res.json()) as {
-      articles: Array<{ slug: string }>;
-      articlesCount: number;
-    };
+    const body = await jakeApi.listArticles({ favorited: dan });
     expect(body.articlesCount).toBe(1);
     expect(body.articles[0].slug).toBe(slugA);
   });
@@ -139,21 +108,18 @@ test.describe("issue #10 — API GET /api/articles", () => {
   test("Scenario 5: pagination respects limit + offset", async () => {
     const id = uniq();
     const jake = `jake-${id}`;
-    const api = await request.newContext({ baseURL: API_URL });
-    await registerUser(api, jake);
+    const api = await ArticlesApi.newContext();
+    await api.registerUser(jake);
 
     // Seed 25 articles. Author filter isolates this spec from others
     // running in parallel against the same stack.
     for (let i = 0; i < 25; i += 1) {
-      await createArticle(api, `P${i.toString().padStart(2, "0")} ${id}`);
+      await api.createArticleReturnSlug({
+        title: `P${i.toString().padStart(2, "0")} ${id}`,
+      });
     }
 
-    const res = await api.get(`/api/articles?author=${jake}&limit=10&offset=10`);
-    expect(res.status()).toBe(200);
-    const body = (await res.json()) as {
-      articles: Array<{ title: string }>;
-      articlesCount: number;
-    };
+    const body = await api.listArticles({ author: jake, limit: 10, offset: 10 });
     expect(body.articles.length).toBe(10);
     expect(body.articlesCount).toBe(25);
     // Offset 10 in a newest-first 25-article list = items 14 through 5
@@ -167,25 +133,16 @@ test.describe("issue #10 — API GET /api/articles", () => {
     const id = uniq();
     const jake = `jake-${id}`;
     const dan = `dan-${id}`;
-    const jakeApi = await request.newContext({ baseURL: API_URL });
-    const danApi = await request.newContext({ baseURL: API_URL });
-    await registerUser(jakeApi, jake);
-    await registerUser(danApi, dan);
+    const jakeApi = await ArticlesApi.newContext();
+    const danApi = await ArticlesApi.newContext();
+    await jakeApi.registerUser(jake);
+    await danApi.registerUser(dan);
 
-    const slugA = await createArticle(jakeApi, `S6 ${id}`);
-    await danApi.post(`/api/articles/${slugA}/favorite`);
-    await danApi.post(`/api/profiles/${jake}/follow`);
+    const slugA = await jakeApi.createArticleReturnSlug({ title: `S6 ${id}` });
+    await danApi.favorite(slugA);
+    await danApi.follow(jake);
 
-    const res = await danApi.get(`/api/articles?author=${jake}`);
-    expect(res.status()).toBe(200);
-    const body = (await res.json()) as {
-      articles: Array<{
-        slug: string;
-        favorited: boolean;
-        favoritesCount: number;
-        author: { following: boolean };
-      }>;
-    };
+    const body = await danApi.listArticles({ author: jake });
     const a = body.articles.find((x) => x.slug === slugA);
     expect(a, "article A should be in the response").toBeDefined();
     expect(a!.favorited).toBe(true);
@@ -194,6 +151,8 @@ test.describe("issue #10 — API GET /api/articles", () => {
   });
 
   test("Scenario 7: invalid limit is rejected with 422", async () => {
+    // Raw request — we want the 422 response body, not the POP's
+    // wrapped assertion.
     const anon = await request.newContext({ baseURL: API_URL });
     const res = await anon.get(`/api/articles?limit=999`);
     expect(res.status()).toBe(422);
