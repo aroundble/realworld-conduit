@@ -7,6 +7,7 @@ import { requestLogger } from "./middleware/logger.js";
 import { requestId, type RequestIdVars } from "./middleware/request-id.js";
 import { registerArticleRoutes } from "./routes/articles.js";
 import { registerAuthRoutes } from "./routes/auth.js";
+import { registerCommentRoutes } from "./routes/comments.js";
 import { registerHealthzRoute } from "./routes/healthz.js";
 import { registerInternalThrowRoute } from "./routes/internal-throw.js";
 import { registerProfileRoutes } from "./routes/profiles.js";
@@ -51,6 +52,7 @@ export const createApp = (): OpenAPIHono<AppEnv> => {
   registerAuthRoutes(app);
   registerProfileRoutes(app);
   registerArticleRoutes(app);
+  registerCommentRoutes(app);
   registerTagsRoutes(app);
   registerInternalThrowRoute(app);
 
