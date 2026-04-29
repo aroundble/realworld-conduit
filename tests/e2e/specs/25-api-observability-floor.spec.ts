@@ -16,6 +16,15 @@ const API_URL =
 
 const WEB_URL = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3100";
 
+// The compose project name (default `conduit` from infra/docker-compose.yml's
+// `name:` field) prefixes every container: `<project>-<service>-1`. The
+// evaluator worktree runs under a distinct project (`-p conduit-eval`) to
+// avoid port collisions with the generator's concurrent stack — so the
+// API container name becomes `conduit-eval-api-1` there. Resolve from
+// env rather than hardcoding so both worktrees pass. See issue #58.
+const COMPOSE_PROJECT = process.env.COMPOSE_PROJECT ?? "conduit";
+const API_CONTAINER = `${COMPOSE_PROJECT}-api-1`;
+
 // Use execFile (no shell) so there's no command-injection surface.
 // `docker logs` prints to stdout; we filter in JS rather than piping
 // through `grep` under a shell.
@@ -23,7 +32,7 @@ const readApiLogs = (marker: string, tail = 600): string => {
   try {
     const out = execFileSync(
       "docker",
-      ["logs", "conduit-api-1", "--tail", String(tail)],
+      ["logs", API_CONTAINER, "--tail", String(tail)],
       { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
     );
     return out
