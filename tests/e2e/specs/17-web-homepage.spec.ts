@@ -1,11 +1,15 @@
 import { expect, request, test } from "@playwright/test";
 import { runAxe } from "../axe-config";
+import { HomePage } from "../page-objects/home";
 
 // BDD coverage for issue #17 (rescoped by Audit E.1, 2026-04-29):
 // static RSC homepage — banner, feed tabs, article preview cards,
 // pagination, tag sidebar, empty state. The interactive favorite
 // toggle lands in follow-up #56 so this spec asserts the non-
 // interactive badge only.
+//
+// Every home DOM selector lives in HomePage
+// (tests/e2e/page-objects/home.ts). #100 Phase 2 refactor.
 
 const API_URL =
   process.env.API_URL ??
@@ -55,23 +59,13 @@ test.describe("issue #17 — web homepage (RSC walking skeleton)", () => {
   test("Scenario 1: anonymous visitor sees banner + Global Feed tab only", async ({
     page,
   }) => {
-    const res = await page.goto(`${WEB_URL}/`);
+    const home = new HomePage(page);
+    const res = await home.goto(WEB_URL);
     expect(res?.status()).toBe(200);
 
-    // Banner copy — matches the RealWorld canonical headline.
-    await expect(page.locator(".banner")).toContainText("conduit");
-    await expect(page.locator(".banner")).toContainText(
-      "A place to share your knowledge.",
-    );
-
-    // Feed tab bar: only Global Feed visible for anon.
-    const tabs = page.locator(".feed-toggle");
-    await expect(tabs.getByRole("link", { name: "Global Feed" })).toBeVisible();
-    await expect(tabs.getByRole("link", { name: "Your Feed" })).toHaveCount(0);
-
-    // Tag sidebar exists (may be empty on a fresh db but the container
-    // always renders).
-    await expect(page.locator(".sidebar")).toContainText("Popular Tags");
+    await home.expectBannerHeadline();
+    await home.expectOnlyGlobalFeedVisible();
+    await home.expectSidebarShowsPopularTags();
   });
 
   test("Scenario 2: authenticated viewer sees Your Feed tab as default", async ({
@@ -86,8 +80,8 @@ test.describe("issue #17 — web homepage (RSC walking skeleton)", () => {
     await registerUser(jakeApi, jake);
     const danSession = await registerUser(danApi, dan);
 
-    const j1Slug = await createArticle(jakeApi, `J1 home ${id}`);
-    const j2Slug = await createArticle(jakeApi, `J2 home ${id}`);
+    await createArticle(jakeApi, `J1 home ${id}`);
+    await createArticle(jakeApi, `J2 home ${id}`);
     // alice seeds a global-only article that should NOT appear in dan's feed.
     const alice = `alice-${id}`;
     const aliceApi = await apiContext();
@@ -122,18 +116,13 @@ test.describe("issue #17 — web homepage (RSC walking skeleton)", () => {
       },
     ]);
 
-    const res = await page.goto(`${WEB_URL}/?feed=you`);
+    const home = new HomePage(page);
+    const res = await home.gotoFeed(WEB_URL, "you");
     expect(res?.status()).toBe(200);
 
-    const tabs = page.locator(".feed-toggle");
-    const yourFeed = tabs.getByRole("link", { name: "Your Feed" });
-    await expect(yourFeed).toBeVisible();
-    await expect(yourFeed).toHaveClass(/active/);
+    await home.expectYourFeedActive();
 
-    const previews = page.locator(".article-preview");
-    const titles = await previews
-      .locator("h1")
-      .allTextContents();
+    const titles = await home.allPreviewTitles();
     expect(titles).toContain(`J1 home ${id}`);
     expect(titles).toContain(`J2 home ${id}`);
     expect(titles).not.toContain(`A1 home ${id}`);
@@ -159,28 +148,20 @@ test.describe("issue #17 — web homepage (RSC walking skeleton)", () => {
     }
 
     // Load home (anon — Global Feed), then click the seeded tag pill.
-    await page.goto(`${WEB_URL}/`);
-
-    const tagPill = page
-      .locator(".sidebar")
-      .getByRole("link", { name: dragonsTag });
-    await expect(tagPill).toBeVisible();
-    await tagPill.click();
-    await page.waitForLoadState("networkidle");
+    const home = new HomePage(page);
+    await home.goto(WEB_URL);
+    await expect(home.sidebarTagPill(dragonsTag)).toBeVisible();
+    await home.clickSidebarTag(dragonsTag);
 
     // URL reflects the filter.
     expect(page.url()).toContain(`tag=${encodeURIComponent(dragonsTag)}`);
 
     // Third tab `# <tag>` is pinned + active.
-    const tabs = page.locator(".feed-toggle");
-    const tagTab = tabs.locator(".nav-link.active");
-    await expect(tagTab).toContainText(`# ${dragonsTag}`);
+    await home.expectActiveTabText(`# ${dragonsTag}`);
 
     // List is filtered to dragons-tagged articles only — no training-
     // tagged article should appear anywhere on the page.
-    const titles = await page
-      .locator(".article-preview h1")
-      .allTextContents();
+    const titles = await home.allPreviewTitles();
     for (const t of titles) {
       expect(t).not.toBe(`Training regimen ${id}`);
     }
@@ -199,11 +180,10 @@ test.describe("issue #17 — web homepage (RSC walking skeleton)", () => {
     const tagB = `preview-b-${id}`;
     await createArticle(api, `Preview card ${id}`, [tagA, tagB]);
 
-    await page.goto(`${WEB_URL}/?tag=${encodeURIComponent(tagA)}`);
+    const home = new HomePage(page);
+    await home.gotoTag(WEB_URL, tagA);
 
-    const preview = page
-      .locator(".article-preview")
-      .filter({ hasText: `Preview card ${id}` });
+    const preview = home.previewByTitle(`Preview card ${id}`);
     await expect(preview).toBeVisible();
 
     // Author username link present in the meta row, pointing at the
@@ -223,7 +203,9 @@ test.describe("issue #17 — web homepage (RSC walking skeleton)", () => {
 
     // Favorite button ships interactive in #56 (this spec used to
     // assert the placeholder non-interactive badge). Envelope-driven
-    // state still renders: zero favorites, aria-pressed=false.
+    // state still renders: zero favorites, aria-pressed=false. The
+    // FavoriteButton component POP from #99 owns this assertion in
+    // spec 56; here we only check the envelope-driven render.
     const favBtn = preview.getByTestId("favorite-button");
     await expect(favBtn).toHaveAttribute("aria-pressed", "false");
     await expect(favBtn).toContainText("0");
@@ -250,18 +232,15 @@ test.describe("issue #17 — web homepage (RSC walking skeleton)", () => {
     }
 
     // Page 2 under the tag filter.
-    await page.goto(
-      `${WEB_URL}/?tag=${encodeURIComponent(pagTag)}&page=2`,
-    );
-    const titles = await page
-      .locator(".article-preview h1")
-      .allTextContents();
+    const home = new HomePage(page);
+    await home.gotoTag(WEB_URL, pagTag, 2);
+
+    const titles = await home.allPreviewTitles();
     expect(titles.length).toBe(5);
 
     // Paginator renders two page links (1, 2) with 2 active.
-    const paginator = page.locator("ul.pagination");
-    await expect(paginator.locator(".page-item")).toHaveCount(2);
-    await expect(paginator.locator(".page-item.active")).toHaveText("2");
+    await home.expectPageCount(2);
+    await home.expectActivePage(2);
   });
 
   test("Scenario 7: empty state message when no articles match", async ({
@@ -270,16 +249,15 @@ test.describe("issue #17 — web homepage (RSC walking skeleton)", () => {
     // A tag no article can possibly have (seeded with timestamp + rand
     // suffix) produces a deterministic empty result.
     const missingTag = `no-such-tag-${uniq()}`;
-    await page.goto(`${WEB_URL}/?tag=${encodeURIComponent(missingTag)}`);
-
-    await expect(page.locator(".article-preview")).toContainText(
-      "No articles are here... yet.",
-    );
+    const home = new HomePage(page);
+    await home.gotoTag(WEB_URL, missingTag);
+    await home.expectEmptyList();
   });
 });
 
 test("axe a11y gate on homepage (#87)", async ({ page }) => {
-  await page.goto(`${WEB_URL}/`);
+  const home = new HomePage(page);
+  await home.goto(WEB_URL);
   await runAxe(page);
 });
 
@@ -292,15 +270,17 @@ test("homepage reflows on mobile viewport @mobile", async ({ page }) => {
   const jakeApi = await apiContext();
   await registerUser(jakeApi, `jake-${uniq()}`);
   await createArticle(jakeApi, `Mobile ${uniq()}`);
-  await page.goto(`${WEB_URL}/`);
+  const home = new HomePage(page);
+  await home.goto(WEB_URL);
 
   // Navbar brand still visible at mobile viewport (375-412px wide).
+  // Navbar is chrome, not home surface — selector stays inline here.
   const brand = page.locator(".navbar-brand");
   await expect(brand).toBeVisible();
 
   // First article preview renders within the mobile viewport width —
   // no horizontal scroll.
-  const preview = page.locator(".article-preview").first();
+  const preview = home.previews.first();
   await expect(preview).toBeVisible();
   const box = await preview.boundingBox();
   const vp = page.viewportSize();
@@ -309,8 +289,7 @@ test("homepage reflows on mobile viewport @mobile", async ({ page }) => {
 
   // Tap-target floor: the Global Feed tab link is at least 44×44
   // (WCAG 2.5.5 minimum target size for touch).
-  const globalTab = page.getByRole("link", { name: "Global Feed" });
-  const tabBox = await globalTab.boundingBox();
+  const tabBox = await home.globalFeedTab.boundingBox();
   if (!tabBox) throw new Error("global feed tab box unavailable");
   expect(tabBox.height).toBeGreaterThanOrEqual(44);
 });
