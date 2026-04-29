@@ -1,0 +1,101 @@
+import "server-only";
+import { apiFetch } from "@/lib/api/client";
+import { readSessionCookie, SESSION_COOKIE } from "@/features/auth/session";
+
+// Envelope types duplicated from apps/api/src/schemas/article.ts in a
+// narrow shape (only what the homepage reads). A shared types package
+// would cut this duplication but lives outside this issue's scope;
+// when #22's shared types module lands the web consumer can import
+// from there.
+
+export type ArticleAuthor = {
+  username: string;
+  bio: string | null;
+  image: string | null;
+  following: boolean;
+};
+
+export type Article = {
+  slug: string;
+  title: string;
+  description: string;
+  body: string;
+  tagList: string[];
+  createdAt: string;
+  updatedAt: string;
+  favorited: boolean;
+  favoritesCount: number;
+  author: ArticleAuthor;
+};
+
+export type ArticleListPayload = {
+  articles: Article[];
+  articlesCount: number;
+};
+
+// The API's list endpoint accepts tag / author / favorited / limit /
+// offset. Homepage only drives tag + limit + offset; the other filters
+// land on the profile page (#20). Explicit named filters here give us
+// a narrow, typed surface — future callers set their own subset.
+export type ListArticleFilters = {
+  tag?: string;
+  limit?: number;
+  offset?: number;
+};
+
+const toQueryString = (params: Record<string, string | number | undefined>): string => {
+  const usp = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value === undefined || value === "") continue;
+    usp.set(key, String(value));
+  }
+  const qs = usp.toString();
+  return qs.length > 0 ? `?${qs}` : "";
+};
+
+// The session JWT rides the conduit_session cookie. apiFetch wraps it
+// into the outbound fetch via the `cookie` key so the API can identify
+// the viewer — that's how viewer-relative favorited / following land
+// on the returned envelopes for authenticated calls.
+const cookieHeader = async (): Promise<string | undefined> => {
+  const token = await readSessionCookie();
+  return token ? `${SESSION_COOKIE}=${token}` : undefined;
+};
+
+export const listArticles = async (
+  filters: ListArticleFilters = {},
+): Promise<ArticleListPayload> => {
+  const qs = toQueryString({
+    tag: filters.tag,
+    limit: filters.limit,
+    offset: filters.offset,
+  });
+  const cookie = await cookieHeader();
+  const res = await apiFetch<ArticleListPayload>(`/api/articles${qs}`, { cookie });
+  if (!res.ok) {
+    throw new Error(`listArticles failed: ${res.status}`);
+  }
+  return res.data;
+};
+
+export const feedArticles = async (
+  filters: { limit?: number; offset?: number } = {},
+): Promise<ArticleListPayload> => {
+  const qs = toQueryString({ limit: filters.limit, offset: filters.offset });
+  const cookie = await cookieHeader();
+  const res = await apiFetch<ArticleListPayload>(`/api/articles/feed${qs}`, { cookie });
+  if (!res.ok) {
+    throw new Error(`feedArticles failed: ${res.status}`);
+  }
+  return res.data;
+};
+
+export type TagList = { tags: string[] };
+
+export const listTopTags = async (): Promise<TagList> => {
+  const res = await apiFetch<TagList>("/api/tags");
+  if (!res.ok) {
+    throw new Error(`listTopTags failed: ${res.status}`);
+  }
+  return res.data;
+};
