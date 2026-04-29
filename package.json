@@ -23,6 +23,8 @@
     "test:e2e": "playwright test --config tests/e2e/playwright.config.ts",
     "test:e2e:mobile": "playwright test --config tests/e2e/playwright.config.ts --project=mobile",
     "test:e2e:rate-limit": "playwright test --config tests/e2e/playwright.config.ts tests/e2e/specs/116-api-rate-limit.spec.ts",
+    "backup:dump": "bash scripts/backup-dump.sh",
+    "backup:restore": "bash scripts/backup-restore.sh",
     "openapi:emit": "bash scripts/emit-openapi.sh",
     "size-limit": "size-limit",
     "lhci": "lhci autorun --config=./lighthouserc.json"

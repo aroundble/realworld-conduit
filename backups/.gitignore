@@ -1,0 +1,5 @@
+# Ignore local backups — they contain real data and can be large.
+*.sql.gz
+# ...except committed fixtures that CI + specs depend on.
+!fixtures/
+!fixtures/*.sql.gz

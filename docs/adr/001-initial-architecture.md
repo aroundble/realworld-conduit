@@ -186,3 +186,12 @@ process env; nothing hardcoded in `src/`. Portability checklist
 - **ETag**: SHA-1 of the response body, strong validator (double-quoted). Only on cacheable GET/HEAD with status 200 — authenticated + mutation responses skip it.
 - **Per-class TTLs**: `/api/tags` 5 min (slowest-changing), `/api/profiles/:username` 2 min, `/api/articles` + `/api/articles/:slug` 1 min, `/api/articles?q=` 30 s. See `docs/caching.md` for the full table.
 - **Reference**: `docs/caching.md`.
+
+## Addendum — Backup + restore (2026-04-29, #157)
+
+- **Tooling**: stock `pg_dump -Fc` (custom format) + `pg_restore`, wrapped by `scripts/backup-dump.sh` + `scripts/backup-restore.sh`. No new dep.
+- **Output**: gzipped custom-format archives in `backups/` (gitignored except fixtures). Single streaming pipe so the uncompressed dump is never on disk.
+- **Restore** is destructive — DROP + CREATE the target DB before pg_restore. Deliberate: merging two dumps is a human decision, not a script default. The api container's Prisma pool reconnects on first request after the DB flip.
+- **CI round-trip**: `.github/workflows/backup-restore-check.yml` seeds → dumps → tears down → restores into a fresh stack → asserts row count. Catches schema drift before a real incident needs the backup.
+- **Not wired**: encrypted remote upload (Level-3 follow-up), point-in-time recovery via WAL archival (separate issue), hot-standby replication.
+- **Reference**: `docs/disaster-recovery.md` — RPO/RTO, rollback procedure, forensic-restore recipe.
