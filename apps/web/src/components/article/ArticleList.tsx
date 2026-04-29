@@ -11,6 +11,9 @@ type Props = {
   // the rest of the query string (feed, tag) so links round-trip the
   // current filter state rather than resetting it on page change.
   pagePath: string;
+  // Propagates to FavoriteButton on each preview; see #56 scenario 4
+  // for the anon click-to-login path.
+  authed: boolean;
 };
 
 // Pagination matches the RealWorld reference: 1-based page index that
@@ -31,6 +34,7 @@ export const ArticleList = ({
   limit,
   currentPage,
   pagePath,
+  authed,
 }: Props) => {
   if (articles.length === 0) {
     return (
@@ -46,7 +50,7 @@ export const ArticleList = ({
   return (
     <>
       {articles.map((article) => (
-        <ArticlePreview article={article} key={article.slug} />
+        <ArticlePreview article={article} authed={authed} key={article.slug} />
       ))}
       {pageCount > 1 ? (
         <ul className="pagination">

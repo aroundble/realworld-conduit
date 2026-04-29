@@ -187,7 +187,7 @@ test.describe("issue #17 — web homepage (RSC walking skeleton)", () => {
     expect(titles.some((t) => t.startsWith("Dragon tales "))).toBe(true);
   });
 
-  test("Scenario 4: article preview card renders envelope-driven fields including non-interactive favorite badge", async ({
+  test("Scenario 4: article preview card renders envelope-driven fields including favorite button", async ({
     page,
   }) => {
     const id = uniq();
@@ -220,11 +220,12 @@ test.describe("issue #17 — web homepage (RSC walking skeleton)", () => {
       expect.arrayContaining([tagA, tagB]),
     );
 
-    // Non-interactive favorite badge. aria-label carries the count;
-    // button is disabled (scope-of-#17 contract).
-    const favBadge = preview.getByRole("button", { name: /favorites: \d+/ });
-    await expect(favBadge).toBeDisabled();
-    await expect(favBadge).toHaveText(/0/);
+    // Favorite button ships interactive in #56 (this spec used to
+    // assert the placeholder non-interactive badge). Envelope-driven
+    // state still renders: zero favorites, aria-pressed=false.
+    const favBtn = preview.getByTestId("favorite-button");
+    await expect(favBtn).toHaveAttribute("aria-pressed", "false");
+    await expect(favBtn).toContainText("0");
   });
 
   test("Scenario 6: pagination via ?page=2 shows the next slice", async ({

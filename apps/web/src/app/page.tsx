@@ -98,6 +98,7 @@ export default async function Home({
               limit={PAGE_SIZE}
               currentPage={currentPage}
               pagePath={buildPagePath(mode, tag)}
+              authed={authed}
             />
           </div>
           <div className="col-md-3">
