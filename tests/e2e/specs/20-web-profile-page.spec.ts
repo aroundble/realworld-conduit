@@ -5,9 +5,23 @@ import {
   type BrowserContext,
 } from "@playwright/test";
 import { runAxe } from "../axe-config";
+import { ProfilePage } from "../page-objects/profile";
 
 // BDD coverage for issue #20: profile page.
 // Five AC scenarios.
+//
+// Every DOM selector for /profile/:user lives in ProfilePage
+// (tests/e2e/page-objects/profile.ts). #101 Phase 2 refactor.
+//
+// Fixture migration per #101 AC: the authedContext fixture provides
+// a single worker-scoped user. Scenarios in this spec mostly need
+// either two users (S1 + S2) or they're anon-only (S4). Scenario 3
+// (self-profile of authed) and Scenario 5 (authed empty favorited)
+// both need the authed user to be the profile *owner* — since the
+// fixture user's username isn't known until runtime, inline
+// priming keeps the assertions readable. Future refactors can
+// migrate these once ProfilePage exposes a "visit-my-profile"
+// helper that reads `authedUser.username`.
 
 const API_URL =
   process.env.API_URL ??
@@ -95,33 +109,26 @@ test.describe("issue #20 — profile page", () => {
     const fav = await jakeApi.post(`/api/articles/${danSlug}/favorite`);
     expect(fav.status()).toBe(200);
 
-    await page.goto(`${WEB_URL}/profile/${jake}`);
+    const profile = new ProfilePage(page);
+    await profile.goto(WEB_URL, jake);
 
     // Banner: username + default avatar, no bio.
-    await expect(page.locator(".user-info h4")).toHaveText(jake);
+    await profile.expectUsername(jake);
 
     // Tabs visible, "My Articles" selected by default.
-    const myTab = page.getByRole("link", { name: "My Articles" });
-    const favTab = page.getByRole("link", { name: "Favorited Articles" });
-    await expect(myTab).toHaveClass(/active/);
-    await expect(favTab).not.toHaveClass(/active/);
+    await profile.expectTabActive("my");
 
     // Filter titles to this spec's id so parallel seeds don't leak in.
-    const authoredTitles = (
-      await page.locator(".article-preview h1").allTextContents()
-    ).filter((t) => t.endsWith(` ${id}`));
+    const authoredTitles = await profile.titlesEndingWith(` ${id}`);
     expect(authoredTitles.sort()).toEqual(
       [`Jake 0 ${id}`, `Jake 1 ${id}`, `Jake 2 ${id}`].sort(),
     );
 
     // Switch to favorited tab.
-    await favTab.click();
-    await page.waitForURL(/\/profile\/.+\?tab=favorited/);
-    await expect(favTab).toHaveClass(/active/);
+    await profile.clickFavoritedTab();
+    await profile.expectTabActive("favorited");
 
-    const favTitles = (
-      await page.locator(".article-preview h1").allTextContents()
-    ).filter((t) => t.endsWith(` ${id}`));
+    const favTitles = await profile.titlesEndingWith(` ${id}`);
     expect(favTitles).toEqual([`Dan A ${id}`]);
   });
 
@@ -138,39 +145,29 @@ test.describe("issue #20 — profile page", () => {
     const danSession = await registerUser(danApi, dan);
     await primeSession(context, danSession, dan);
 
-    await page.goto(`${WEB_URL}/profile/${jake}`);
-    const follow = page.getByRole("button", { name: `Follow ${jake}` });
-    await expect(follow).toBeVisible();
-    await follow.click();
-
-    await expect(
-      page.getByRole("button", { name: `Unfollow ${jake}` }),
-    ).toBeVisible();
+    const profile = new ProfilePage(page);
+    await profile.goto(WEB_URL, jake);
+    await profile.expectFollowButtonVisible(jake);
+    await profile.follow(jake);
 
     // Persist on reload.
     await page.reload();
-    await expect(
-      page.getByRole("button", { name: `Unfollow ${jake}` }),
-    ).toBeVisible();
+    await profile.expectFollowing(jake);
   });
 
   test("Scenario 3: self profile shows Edit Profile Settings link, not a Follow button", async ({
     page,
     context,
   }) => {
-    const id = uniq();
-    const jake = `jake-${id}`;
+    const jake = `jake-${uniq()}`;
     const jakeApi = await apiContext();
     const session = await registerUser(jakeApi, jake);
     await primeSession(context, session, jake);
 
-    await page.goto(`${WEB_URL}/profile/${jake}`);
-
-    const editLink = page.getByRole("link", { name: /Edit Profile Settings/ });
-    await expect(editLink).toHaveAttribute("href", "/settings");
-    await expect(
-      page.getByRole("button", { name: /^Follow|^Unfollow/ }),
-    ).toHaveCount(0);
+    const profile = new ProfilePage(page);
+    await profile.goto(WEB_URL, jake);
+    await profile.expectEditProfileLink();
+    await profile.expectNoFollowButton();
   });
 
   test("Scenario 4: unknown user returns 404 with a helpful page", async ({
@@ -184,25 +181,21 @@ test.describe("issue #20 — profile page", () => {
   test("Scenario 5: empty favorited tab shows empty-state", async ({
     page,
   }) => {
-    const id = uniq();
-    const jake = `jake-${id}`;
+    const jake = `jake-${uniq()}`;
     const jakeApi = await apiContext();
     await registerUser(jakeApi, jake);
     // jake exists but has favorited no articles.
 
-    await page.goto(`${WEB_URL}/profile/${jake}?tab=favorited`);
-
+    const profile = new ProfilePage(page);
+    await profile.gotoFavoritedTab(WEB_URL, jake);
     // Scope to the article-preview region to catch the empty-state
     // copy rendered by ArticleList when the list is empty.
-    await expect(page.locator(".article-preview")).toContainText(
-      "No articles are here... yet.",
-    );
+    await profile.expectEmptyList();
   });
 });
 
 test("axe a11y gate on profile page (#87)", async ({ page }) => {
-  const id = uniq();
-  const jake = `jake-${id}`;
+  const jake = `jake-${uniq()}`;
   const api = await apiContext();
   await registerUser(api, jake);
   await page.goto(`${WEB_URL}/profile/${jake}`);
