@@ -1,11 +1,15 @@
 import { expect, test } from "@playwright/test";
-import { runAxe } from "../axe-config";
 import { mkdir } from "node:fs/promises";
+import { runAxe } from "../axe-config";
+import { AuthPage } from "../page-objects/auth";
 
 // BDD coverage for issue #16: register + login pages backed by Next.js
 // Server Actions. Exercises the UI against the live compose web +
 // API stack; nothing here mocks the API so a regression in the auth
 // transport or the session-cookie handling also shows up here.
+//
+// Every DOM selector lives in AuthPage (tests/e2e/page-objects/auth.ts).
+// Spec bodies describe user journeys.
 //
 // Each scenario gets a fresh user (unique email / username suffix) so
 // runs are independent of DB state. The only precondition is "web +
@@ -26,22 +30,17 @@ test.describe("issue #16 — web register / login", () => {
     page,
     context,
   }) => {
-    const id = uniq();
-    const username = `jake${id}`;
-    await page.goto("/register");
-    await page.getByPlaceholder("Your Name").fill(username);
-    await page.getByPlaceholder("Email").fill(`${username}@jake.jake`);
-    await page.getByPlaceholder("Password").fill("jakejake");
+    const username = `jake${uniq()}`;
+    const auth = new AuthPage(page);
 
-    await Promise.all([
-      page.waitForURL("**/"),
-      page.getByRole("button", { name: "Sign up" }).click(),
-    ]);
+    await auth.registerNewUser({
+      username,
+      email: `${username}@jake.jake`,
+      password: "jakejake",
+    });
 
     await expect(page).toHaveURL(/\/$/);
-    await expect(
-      page.locator("nav.navbar").getByRole("link", { name: new RegExp(`@${username}`) }),
-    ).toBeVisible();
+    await auth.expectNavbarShowsUser(username);
 
     const cookieNames = (await context.cookies()).map((c) => c.name);
     expect(cookieNames).toContain(SESSION_COOKIE);
@@ -58,35 +57,29 @@ test.describe("issue #16 — web register / login", () => {
     const id = uniq();
     const username = `jake${id}`;
     const email = `${username}@jake.jake`;
+    const auth = new AuthPage(page);
 
     // Seed: register once, then log out by clearing cookies so the
     // second attempt sees the duplicate-email path, not the
     // "already authed → redirect" path.
-    await page.goto("/register");
-    await page.getByPlaceholder("Your Name").fill(username);
-    await page.getByPlaceholder("Email").fill(email);
-    await page.getByPlaceholder("Password").fill("jakejake");
-    await Promise.all([
-      page.waitForURL("**/"),
-      page.getByRole("button", { name: "Sign up" }).click(),
-    ]);
+    await auth.registerNewUser({ username, email, password: "jakejake" });
     await page.context().clearCookies();
 
-    await page.goto("/register");
+    await auth.gotoRegister();
     const secondUsername = `dupe${id}`;
-    await page.getByPlaceholder("Your Name").fill(secondUsername);
-    await page.getByPlaceholder("Email").fill(email);
-    await page.getByPlaceholder("Password").fill("jakejake");
-    await page.getByRole("button", { name: "Sign up" }).click();
+    await auth.fillRegisterForm({
+      username: secondUsername,
+      email,
+      password: "jakejake",
+    });
+    await auth.submitRegisterNoWait();
 
     await expect(page).toHaveURL(/\/register/);
-    await expect(page.locator(".error-messages")).toContainText(
-      "email has already been taken",
-    );
+    await auth.expectErrorContains("email has already been taken");
     // Inputs are preserved — conform-to's reply() echoes submitted
     // values back on the next render.
-    await expect(page.getByPlaceholder("Your Name")).toHaveValue(secondUsername);
-    await expect(page.getByPlaceholder("Email")).toHaveValue(email);
+    await expect(auth.usernameInput).toHaveValue(secondUsername);
+    await expect(auth.emailInput).toHaveValue(email);
 
     await page.screenshot({
       path: `${SCREENSHOT_DIR}/scenario-2-duplicate-email.png`,
@@ -96,19 +89,19 @@ test.describe("issue #16 — web register / login", () => {
   test("Scenario 3: invalid input shows per-field errors and stays on /register", async ({
     page,
   }) => {
-    await page.goto("/register");
+    const auth = new AuthPage(page);
+    await auth.gotoRegister();
 
-    await page.getByPlaceholder("Your Name").fill("jake");
-    await page.getByPlaceholder("Email").fill("notAnEmail");
+    await auth.usernameInput.fill("jake");
+    await auth.emailInput.fill("notAnEmail");
     // Tab off email to trigger conform-to's onBlur validation.
-    await page.getByPlaceholder("Email").press("Tab");
-    await page.getByRole("button", { name: "Sign up" }).click();
+    await auth.emailInput.press("Tab");
+    await auth.submitRegisterNoWait();
 
     // Client-side zod intercepts the submit; the page never navigates.
     await expect(page).toHaveURL(/\/register/);
-    const errors = page.locator(".error-messages");
-    await expect(errors).toContainText("email must be a valid email");
-    await expect(errors).toContainText("password can't be blank");
+    await auth.expectErrorContains("email must be a valid email");
+    await auth.expectErrorContains("password can't be blank");
 
     await page.screenshot({
       path: `${SCREENSHOT_DIR}/scenario-3-invalid-input.png`,
@@ -121,28 +114,17 @@ test.describe("issue #16 — web register / login", () => {
     const id = uniq();
     const username = `login${id}`;
     const email = `${username}@jake.jake`;
+    const auth = new AuthPage(page);
 
-    await page.goto("/register");
-    await page.getByPlaceholder("Your Name").fill(username);
-    await page.getByPlaceholder("Email").fill(email);
-    await page.getByPlaceholder("Password").fill("jakejake");
-    await Promise.all([
-      page.waitForURL("**/"),
-      page.getByRole("button", { name: "Sign up" }).click(),
-    ]);
+    await auth.registerNewUser({ username, email, password: "jakejake" });
     await page.context().clearCookies();
 
-    await page.goto("/login");
-    await page.getByPlaceholder("Email").fill(email);
-    await page.getByPlaceholder("Password").fill("jakejake");
-    await Promise.all([
-      page.waitForURL("**/"),
-      page.getByRole("button", { name: "Sign in" }).click(),
-    ]);
+    await auth.gotoLogin();
+    await auth.fillLoginForm({ email, password: "jakejake" });
+    await auth.submitLogin();
+
     await expect(page).toHaveURL(/\/$/);
-    await expect(
-      page.locator("nav.navbar").getByRole("link", { name: new RegExp(`@${username}`) }),
-    ).toBeVisible();
+    await auth.expectNavbarShowsUser(username);
 
     await page.screenshot({
       path: `${SCREENSHOT_DIR}/scenario-4-login-success.png`,
@@ -155,26 +137,17 @@ test.describe("issue #16 — web register / login", () => {
     const id = uniq();
     const username = `wrong${id}`;
     const email = `${username}@jake.jake`;
+    const auth = new AuthPage(page);
 
-    await page.goto("/register");
-    await page.getByPlaceholder("Your Name").fill(username);
-    await page.getByPlaceholder("Email").fill(email);
-    await page.getByPlaceholder("Password").fill("jakejake");
-    await Promise.all([
-      page.waitForURL("**/"),
-      page.getByRole("button", { name: "Sign up" }).click(),
-    ]);
+    await auth.registerNewUser({ username, email, password: "jakejake" });
     await page.context().clearCookies();
 
-    await page.goto("/login");
-    await page.getByPlaceholder("Email").fill(email);
-    await page.getByPlaceholder("Password").fill("wrongwrong");
-    await page.getByRole("button", { name: "Sign in" }).click();
+    await auth.gotoLogin();
+    await auth.fillLoginForm({ email, password: "wrongwrong" });
+    await auth.submitLoginNoWait();
 
     await expect(page).toHaveURL(/\/login/);
-    await expect(page.locator(".error-messages")).toContainText(
-      "email or password is invalid",
-    );
+    await auth.expectErrorContains("email or password is invalid");
 
     await page.screenshot({
       path: `${SCREENSHOT_DIR}/scenario-5-login-wrong-password.png`,
@@ -190,18 +163,15 @@ test.describe("issue #16 — web register / login", () => {
     // native POST without any client-side hydration.
     const context = await browser.newContext({ javaScriptEnabled: false });
     const page = await context.newPage();
-    const id = uniq();
-    const username = `nojs${id}`;
+    const username = `nojs${uniq()}`;
+    const auth = new AuthPage(page);
 
-    await page.goto("/register");
-    await page.getByPlaceholder("Your Name").fill(username);
-    await page.getByPlaceholder("Email").fill(`${username}@jake.jake`);
-    await page.getByPlaceholder("Password").fill("jakejake");
+    await auth.registerNewUser({
+      username,
+      email: `${username}@jake.jake`,
+      password: "jakejake",
+    });
 
-    await Promise.all([
-      page.waitForURL("**/"),
-      page.getByRole("button", { name: "Sign up" }).click(),
-    ]);
     await expect(page).toHaveURL(/\/$/);
     const cookieNames = (await context.cookies()).map((c) => c.name);
     expect(cookieNames).toContain(SESSION_COOKIE);
