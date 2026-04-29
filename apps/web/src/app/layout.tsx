@@ -3,6 +3,7 @@ import { Toaster } from "sonner";
 import { Footer } from "@/components/Footer";
 import { Navbar } from "@/components/Navbar";
 import { ServiceWorkerRegistration } from "@/components/ServiceWorkerRegistration";
+import { SkipLink } from "@/components/SkipLink";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import "./globals.css";
 
@@ -54,11 +55,19 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body>
         <ThemeProvider>
+          {/* Skip-to-content link (#161). First focusable element on
+              every page. Visually hidden until it receives keyboard
+              focus; jumps past the navbar straight to <main>. */}
+          <SkipLink />
           <Navbar />
           {/* Every page's content sits inside <main> so axe's
               landmark-one-main + region rules are satisfied globally
-              (see tests/e2e/axe-config.ts + #87). */}
-          <main>{children}</main>
+              (see tests/e2e/axe-config.ts + #87). `tabindex="-1"`
+              lets the SkipLink's fragment navigation move focus here
+              programmatically. */}
+          <main id="main-content" tabIndex={-1}>
+            {children}
+          </main>
           <Footer />
           {/* Toast layer (#115). Sonner's <Toaster> mounts a
               role="status" live region so any client-component

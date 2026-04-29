@@ -634,3 +634,77 @@ footer {
   text-decoration: underline;
   font-size: 0.9rem;
 }
+
+/* ── Skip-link (#161) ────────────────────────────────────────
+ * Visually hidden until it receives keyboard focus, then paints
+ * at the top-left of the viewport with the primary-button
+ * palette. Clip-path + position:absolute is the modern
+ * replacement for the legacy sr-only pattern — it keeps the
+ * element in the accessibility tree + focusable while hiding it
+ * from sighted users.
+ */
+.skip-link {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 9999;
+  padding: 0.5rem 1rem;
+  background: var(--conduit-green);
+  color: #ffffff;
+  text-decoration: none;
+  font-weight: 600;
+  border-radius: 0 0 0.3rem 0;
+  clip-path: inset(50%);
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.skip-link:focus,
+.skip-link:focus-visible {
+  clip-path: none;
+  width: auto;
+  height: auto;
+  overflow: visible;
+  outline: 3px solid #ffffff;
+  outline-offset: 2px;
+}
+
+/* Hide the default focus ring on <main> when it receives focus
+ * via the skip-link — tabindex="-1" is programmatic-only; the
+ * ring on a large region looks weird. */
+main:focus {
+  outline: none;
+}
+
+/* ── Focus-visible rings (#161) ──────────────────────────────
+ * Canonical keyboard-focus indicator for every interactive
+ * element. :focus-visible fires on keyboard navigation but not
+ * on mouse clicks — which is exactly the UX we want. A 2px
+ * solid green outline with a 2px offset clears 3:1 on both
+ * palettes (the green has strong contrast with the body bg in
+ * light mode and the brightened green clears AA in dark).
+ */
+a:focus-visible,
+button:focus-visible,
+[role="button"]:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+[tabindex]:not([tabindex="-1"]):focus-visible {
+  outline: 2px solid var(--conduit-green);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* Reduced-motion: disable any focus-transition animation so
+ * motion-sensitive users don't experience dizziness from rings
+ * sliding in. Our outlines don't animate anyway; this is
+ * belt-and-braces for a future refactor. */
+@media (prefers-reduced-motion: reduce) {
+  *:focus,
+  *:focus-visible {
+    transition: none !important;
+  }
+}
