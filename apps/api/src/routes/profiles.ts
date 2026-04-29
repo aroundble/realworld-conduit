@@ -111,7 +111,7 @@ export const registerProfileRoutes = (app: OpenAPIHono<AppEnv>): void => {
   authed.use(followRoute.getRoutingPath(), requireAuth());
   authed.openapi(followRoute, async (c) => {
     const viewer = c.get("user");
-    if (!viewer) return c.json(jsonError("auth", "Unauthorized"), 401);
+    if (!viewer) return c.json(jsonError("token", "is missing"), 401);
     const { username } = c.req.valid("param");
     try {
       const profile = await followUser(viewer.id, username);
@@ -127,7 +127,7 @@ export const registerProfileRoutes = (app: OpenAPIHono<AppEnv>): void => {
 
   authed.openapi(unfollowRoute, async (c) => {
     const viewer = c.get("user");
-    if (!viewer) return c.json(jsonError("auth", "Unauthorized"), 401);
+    if (!viewer) return c.json(jsonError("token", "is missing"), 401);
     const { username } = c.req.valid("param");
     try {
       const profile = await unfollowUser(viewer.id, username);

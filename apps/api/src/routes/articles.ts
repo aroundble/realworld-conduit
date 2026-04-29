@@ -282,7 +282,7 @@ export const registerArticleRoutes = (app: OpenAPIHono<AppEnv>): void => {
   authed.use(feedRoute.getRoutingPath(), requireAuth());
   authed.openapi(feedRoute, async (c) => {
     const viewer = c.get("user");
-    if (!viewer) return c.json(jsonError("auth", "Unauthorized"), 401);
+    if (!viewer) return c.json(jsonError("token", "is missing"), 401);
     const q = c.req.valid("query");
     const limit = q.limit ?? FEED_DEFAULT_LIMIT;
     const offset = q.offset ?? 0;
@@ -317,7 +317,7 @@ export const registerArticleRoutes = (app: OpenAPIHono<AppEnv>): void => {
 
   authed.openapi(createArticleRoute, async (c) => {
     const viewer = c.get("user");
-    if (!viewer) return c.json(jsonError("auth", "Unauthorized"), 401);
+    if (!viewer) return c.json(jsonError("token", "is missing"), 401);
     const { article } = c.req.valid("json");
     try {
       const envelope = await createArticle(viewer.id, article);
@@ -353,7 +353,7 @@ export const registerArticleRoutes = (app: OpenAPIHono<AppEnv>): void => {
   // (anonymous PUT/DELETE fail 401) without breaking anonymous reads.
   authed.openapi(updateArticleRoute, async (c) => {
     const viewer = c.get("user");
-    if (!viewer) return c.json(jsonError("auth", "Unauthorized"), 401);
+    if (!viewer) return c.json(jsonError("token", "is missing"), 401);
     const { slug } = c.req.valid("param");
     const { article } = c.req.valid("json");
     try {
@@ -371,7 +371,7 @@ export const registerArticleRoutes = (app: OpenAPIHono<AppEnv>): void => {
 
   authed.openapi(deleteArticleRoute, async (c) => {
     const viewer = c.get("user");
-    if (!viewer) return c.json(jsonError("auth", "Unauthorized"), 401);
+    if (!viewer) return c.json(jsonError("token", "is missing"), 401);
     const { slug } = c.req.valid("param");
     try {
       await deleteArticle(viewer.id, slug);
@@ -392,7 +392,7 @@ export const registerArticleRoutes = (app: OpenAPIHono<AppEnv>): void => {
   authed.use(favoriteRoute.getRoutingPath(), requireAuth());
   authed.openapi(favoriteRoute, async (c) => {
     const viewer = c.get("user");
-    if (!viewer) return c.json(jsonError("auth", "Unauthorized"), 401);
+    if (!viewer) return c.json(jsonError("token", "is missing"), 401);
     const { slug } = c.req.valid("param");
     try {
       const envelope = await favoriteArticle(viewer.id, slug);
@@ -407,7 +407,7 @@ export const registerArticleRoutes = (app: OpenAPIHono<AppEnv>): void => {
 
   authed.openapi(unfavoriteRoute, async (c) => {
     const viewer = c.get("user");
-    if (!viewer) return c.json(jsonError("auth", "Unauthorized"), 401);
+    if (!viewer) return c.json(jsonError("token", "is missing"), 401);
     const { slug } = c.req.valid("param");
     try {
       const envelope = await unfavoriteArticle(viewer.id, slug);

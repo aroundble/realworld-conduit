@@ -128,6 +128,7 @@ test.describe("issue #6 — API PUT /api/user", () => {
     });
     expect(res.status()).toBe(401);
     const body = (await res.json()) as { errors: Record<string, string[]> };
-    expect(body.errors.auth).toEqual(["Unauthorized"]);
+    // Spec envelope per #62 — canonical RealWorld missing-token shape.
+    expect(body.errors.token).toEqual(["is missing"]);
   });
 });

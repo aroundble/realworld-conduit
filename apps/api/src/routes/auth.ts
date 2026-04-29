@@ -171,11 +171,11 @@ export const registerAuthRoutes = (app: OpenAPIHono<AppEnv>): void => {
   authed.openapi(currentUserRoute, async (c) => {
     const current = c.get("user");
     if (!current) {
-      return c.json(jsonError("auth", "Unauthorized"), 401);
+      return c.json(jsonError("token", "is missing"), 401);
     }
     const envelope = await getUserById(current.id);
     if (!envelope) {
-      return c.json(jsonError("auth", "Unauthorized"), 401);
+      return c.json(jsonError("token", "is missing"), 401);
     }
     c.header("Authorization", `Token ${envelope.token}`);
     return c.json({ user: envelope }, 200);
@@ -185,7 +185,7 @@ export const registerAuthRoutes = (app: OpenAPIHono<AppEnv>): void => {
   authed.openapi(updateUserRoute, async (c) => {
     const current = c.get("user");
     if (!current) {
-      return c.json(jsonError("auth", "Unauthorized"), 401);
+      return c.json(jsonError("token", "is missing"), 401);
     }
     const { user } = c.req.valid("json");
     try {

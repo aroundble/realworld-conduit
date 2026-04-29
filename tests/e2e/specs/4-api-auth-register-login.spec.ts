@@ -97,7 +97,9 @@ test.describe("issue #4 — API auth (register / login / current-user)", () => {
     });
     expect(res.status()).toBe(401);
     const body = (await res.json()) as { errors: Record<string, string[]> };
-    expect(body.errors["email or password"]).toEqual(["is invalid"]);
+    // Spec envelope for wrong password: `{errors:{credentials:["invalid"]}}`.
+    // Updated per #62 to match the canonical RealWorld Bruno collection.
+    expect(body.errors.credentials).toEqual(["invalid"]);
     expect(res.headers()["set-cookie"]).toBeUndefined();
   });
 
@@ -127,6 +129,8 @@ test.describe("issue #4 — API auth (register / login / current-user)", () => {
     const res = await api.get("/api/user");
     expect(res.status()).toBe(401);
     const body = (await res.json()) as { errors: Record<string, string[]> };
-    expect(body.errors.auth).toEqual(["Unauthorized"]);
+    // Spec envelope for missing/invalid token: `{errors:{token:["is missing"]}}`.
+    // Updated per #62 to match the canonical RealWorld Bruno collection.
+    expect(body.errors.token).toEqual(["is missing"]);
   });
 });

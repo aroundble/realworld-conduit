@@ -98,10 +98,11 @@ export const loginAction = async (
   });
 
   if (!res.ok) {
-    // 401 here means "email or password is invalid" — the API emits
-    // `{ errors: { "email or password": ["is invalid"] } }`. The key
-    // has a space in it (spec-mandated), so we surface it as a form-
-    // level error rather than trying to map it to a field.
+    // 401 here means the credentials didn't match. The API emits the
+    // canonical RealWorld envelope `{ errors: { credentials: ["invalid"] } }`
+    // (per #62); we surface a user-facing form-level message rather
+    // than echoing the field-keyed envelope because "credentials" is
+    // not a form field and "invalid" is too terse to read in the UI.
     if (res.status === 401) {
       return submission.reply({
         formErrors: ["email or password is invalid"],
