@@ -6,6 +6,11 @@ import { globalBodyLimit } from "./middleware/body-limit.js";
 import { corsMiddleware } from "./middleware/cors.js";
 import { errorHandler } from "./middleware/error.js";
 import { requestLogger } from "./middleware/logger.js";
+import {
+  isMetricsAuthorized,
+  metricsHandler,
+  metricsMiddleware,
+} from "./middleware/metrics.js";
 import { requestId, type RequestIdVars } from "./middleware/request-id.js";
 import { securityHeaders } from "./middleware/security-headers.js";
 import { registerArticleRoutes } from "./routes/articles.js";
@@ -50,6 +55,12 @@ export const createApp = (): OpenAPIHono<AppEnv> => {
   app.use("*", requestId());
   app.use("*", requestLogger());
   app.use("*", corsMiddleware());
+  // Prometheus metrics (#139). Runs after request-id so the
+  // Hono router has resolved `c.req.routePath` by the time we
+  // label our histograms — that's how we keep cardinality bounded
+  // (pattern, not interpolated slug). Instrumentation skips
+  // /metrics itself to avoid scraper-feedback noise.
+  app.use("*", metricsMiddleware());
   // Baseline security headers (#124). Sits after CORS so the CORS
   // preflight response still carries the OPTIONS headers CORS owns,
   // then secure-headers stacks nosniff / DENY / Referrer-Policy /
@@ -105,6 +116,21 @@ export const createApp = (): OpenAPIHono<AppEnv> => {
       pageTitle: "Conduit API",
     }),
   );
+
+  // /metrics (#139). Prometheus text exposition. Dev runs without
+  // a token for local scraping; production requires the
+  // `X-Metrics-Token: $METRICS_TOKEN` header. Mounted here (not
+  // through the OpenAPI router) so the endpoint stays outside the
+  // `/api/` tree that `@hono/zod-openapi` publishes — metrics are
+  // ops surface, not product API.
+  app.get("/metrics", async (c) => {
+    const token = c.req.header("x-metrics-token");
+    if (!isMetricsAuthorized(token)) {
+      return c.json({ errors: { metrics: ["unauthorized"] } }, 401);
+    }
+    const { body, contentType } = await metricsHandler();
+    return c.body(body, 200, { "Content-Type": contentType });
+  });
 
   app.notFound((c) => c.json({ errors: { body: ["not found"] } }, 404));
 

@@ -2,6 +2,7 @@ import { createMiddleware } from "hono/factory";
 import type { Context } from "hono";
 import { prisma } from "../prisma/client.js";
 import type { UserVars } from "./jwt-cookie.js";
+import { rateLimitRejectionsTotal } from "./metrics.js";
 
 // Per-bucket rate limiter backed by the RateLimit table (#116).
 //
@@ -126,6 +127,7 @@ export const rateLimit = (opts: RateLimitOptions) =>
 
     if (row.hits > opts.limit) {
       c.header("Retry-After", String(retryAfter));
+      rateLimitRejectionsTotal.inc({ endpoint: opts.bucket });
       return c.json(
         jsonError("too many requests, please try again later"),
         429,

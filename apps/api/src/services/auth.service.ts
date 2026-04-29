@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import jwt, { type SignOptions } from "jsonwebtoken";
 import type { User } from "@prisma/client";
 import { config } from "../config.js";
+import { authFailuresTotal } from "../middleware/metrics.js";
 import { prisma } from "../prisma/client.js";
 
 // RealWorld user envelope — what the spec returns in the `user` key for
@@ -29,8 +30,25 @@ export class AuthError extends Error {
   ) {
     super(`${field}: ${detail}`);
     this.name = "AuthError";
+    // Observability: every AuthError creation is an auth failure,
+    // regardless of whether the route handler re-throws or catches
+    // it locally. Incrementing in the constructor guarantees the
+    // metric counts actual incidents, not rethrow decisions. (#139)
+    authFailuresTotal.inc({ reason: authFailureReasonOf(field) });
   }
 }
+
+// Bound set of reason labels for auth_failures_total (#139). The
+// raw `field+detail` pair is too fine-grained for a Prom label
+// (risk: high cardinality if detail strings diverge). We map the
+// field → a stable reason token the dashboard can pivot on.
+const authFailureReasonOf = (field: string): string => {
+  if (field === "credentials") return "invalid_credentials";
+  if (field === "token") return "missing_or_expired_token";
+  if (field === "email") return "email_conflict";
+  if (field === "username") return "username_conflict";
+  return "other";
+};
 
 const signToken = (user: Pick<User, "id" | "email" | "username">): string => {
   const payload: JwtPayload = {

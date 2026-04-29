@@ -26,6 +26,10 @@ export const errorHandler = (
         secure: config.cookieSecure,
       });
     }
+    // (Metrics instrumentation for AuthError lives in the class
+    // constructor — see auth.service.ts — so the counter fires
+    // whether a route handler re-throws or catches the error
+    // locally. #139.)
     return c.json({ errors: { [err.field]: [err.detail] } }, err.status);
   }
 
