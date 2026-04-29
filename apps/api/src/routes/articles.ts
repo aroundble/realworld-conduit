@@ -4,13 +4,16 @@ import type { AppEnv } from "../app.js";
 import {
   ArticleError,
   createArticle,
+  deleteArticle,
   getArticleBySlug,
+  updateArticle,
 } from "../services/articles.service.js";
 import { optionalAuth, requireAuth, type UserVars } from "../middleware/jwt-cookie.js";
 import { ErrorResponseSchema } from "../schemas/user.js";
 import {
   ArticleResponseSchema,
   CreateArticleRequestSchema,
+  UpdateArticleRequestSchema,
 } from "../schemas/article.js";
 
 type ArticleVars = AppEnv["Variables"] & UserVars;
@@ -73,6 +76,65 @@ const getArticleRoute = createRoute({
   },
 });
 
+const updateArticleRoute = createRoute({
+  method: "put",
+  path: "/api/articles/{slug}",
+  tags: ["articles"],
+  summary: "Update an article (author-scoped)",
+  request: {
+    params: SlugParam,
+    body: {
+      required: true,
+      content: { "application/json": { schema: UpdateArticleRequestSchema } },
+    },
+  },
+  responses: {
+    200: {
+      description: "Updated",
+      content: { "application/json": { schema: ArticleResponseSchema } },
+    },
+    401: {
+      description: "Unauthorized",
+      content: { "application/json": { schema: ErrorResponseSchema } },
+    },
+    403: {
+      description: "Forbidden — viewer is not the author",
+      content: { "application/json": { schema: ErrorResponseSchema } },
+    },
+    404: {
+      description: "Not found",
+      content: { "application/json": { schema: ErrorResponseSchema } },
+    },
+    422: {
+      description: "Unprocessable entity",
+      content: { "application/json": { schema: ErrorResponseSchema } },
+    },
+  },
+});
+
+const deleteArticleRoute = createRoute({
+  method: "delete",
+  path: "/api/articles/{slug}",
+  tags: ["articles"],
+  summary: "Delete an article (author-scoped)",
+  request: { params: SlugParam },
+  responses: {
+    204: { description: "Deleted" },
+    401: {
+      description: "Unauthorized",
+      content: { "application/json": { schema: ErrorResponseSchema } },
+    },
+    403: {
+      description: "Forbidden — viewer is not the author",
+      content: { "application/json": { schema: ErrorResponseSchema } },
+    },
+    404: {
+      description: "Not found",
+      content: { "application/json": { schema: ErrorResponseSchema } },
+    },
+  },
+});
+
 export const registerArticleRoutes = (app: OpenAPIHono<AppEnv>): void => {
   const authed = app as unknown as OpenAPIHono<ArticleEnv>;
 
@@ -102,6 +164,46 @@ export const registerArticleRoutes = (app: OpenAPIHono<AppEnv>): void => {
     } catch (err) {
       if (err instanceof ArticleError && err.status === 404) {
         return c.json(jsonError(err.field, err.detail), 404);
+      }
+      throw err;
+    }
+  });
+
+  // PUT + DELETE share the `/api/articles/{slug}` path with GET above,
+  // and Hono's `app.use(path, ...)` is method-agnostic — adding a
+  // `requireAuth()` .use() here would stack on top of the `optionalAuth()`
+  // above and 401 anonymous GETs. Instead the handlers do an explicit
+  // `if (!viewer) → 401` check, which yields the same contract
+  // (anonymous PUT/DELETE fail 401) without breaking anonymous reads.
+  authed.openapi(updateArticleRoute, async (c) => {
+    const viewer = c.get("user");
+    if (!viewer) return c.json(jsonError("auth", "Unauthorized"), 401);
+    const { slug } = c.req.valid("param");
+    const { article } = c.req.valid("json");
+    try {
+      const envelope = await updateArticle(viewer.id, slug, article);
+      return c.json({ article: envelope }, 200);
+    } catch (err) {
+      if (err instanceof ArticleError) {
+        if (err.status === 404) return c.json(jsonError(err.field, err.detail), 404);
+        if (err.status === 403) return c.json(jsonError(err.field, err.detail), 403);
+        if (err.status === 422) return c.json(jsonError(err.field, err.detail), 422);
+      }
+      throw err;
+    }
+  });
+
+  authed.openapi(deleteArticleRoute, async (c) => {
+    const viewer = c.get("user");
+    if (!viewer) return c.json(jsonError("auth", "Unauthorized"), 401);
+    const { slug } = c.req.valid("param");
+    try {
+      await deleteArticle(viewer.id, slug);
+      return c.body(null, 204);
+    } catch (err) {
+      if (err instanceof ArticleError) {
+        if (err.status === 404) return c.json(jsonError(err.field, err.detail), 404);
+        if (err.status === 403) return c.json(jsonError(err.field, err.detail), 403);
       }
       throw err;
     }

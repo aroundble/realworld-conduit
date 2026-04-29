@@ -41,3 +41,25 @@ export const CreateArticleRequestSchema = z
     }),
   })
   .openapi("CreateArticleRequest");
+
+// PUT /api/articles/:slug is partial — any subset of title/description/body
+// may be sent; unspecified fields are left untouched. tagList is
+// intentionally not editable on update per the spec (tags belong to the
+// article at creation; tag-edit UX is a separate feature).
+export const UpdateArticleRequestSchema = z
+  .object({
+    article: z
+      .object({
+        title: z.string().min(1, "can't be blank").max(300).optional(),
+        description: z.string().max(1000).optional(),
+        body: z.string().max(50_000).optional(),
+      })
+      .refine(
+        (value) =>
+          value.title !== undefined ||
+          value.description !== undefined ||
+          value.body !== undefined,
+        { message: "at least one of title/description/body must be provided" },
+      ),
+  })
+  .openapi("UpdateArticleRequest");
