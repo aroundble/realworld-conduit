@@ -33,7 +33,12 @@ fi
 
 echo "[smoke] GET ${API_URL_HOST}/healthz"
 api_body=$(curl -fsS "${API_URL_HOST}/healthz")
-if [[ "$api_body" != '{"ok":true}' ]]; then
+# /healthz returns { ok, checks: { db } } per #25's observability floor.
+# Use a shape assertion (ok=true AND checks.db=ok) rather than literal
+# equality so the smoke catches db-fail (`checks.db=fail` → 503) the
+# same way it catches api-down, and so additive extensions to the
+# envelope (future `checks.queue`, `checks.cache`) don't break smoke.
+if ! printf '%s' "$api_body" | jq -e '.ok == true and .checks.db == "ok"' >/dev/null; then
   echo "[smoke] unexpected api body: $api_body" >&2
   exit 1
 fi
