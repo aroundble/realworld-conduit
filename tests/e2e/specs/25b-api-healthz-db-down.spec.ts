@@ -117,7 +117,25 @@ test.describe.serial("issue #49 — /healthz 503 side-stack spec", () => {
       ].join("\n") + "\n",
     );
 
-    compose(["up", "-d", "--build"], { stdio: "inherit" });
+    // `compose up -d --build` occasionally fails with a transient
+    // non-zero exit on a cold docker image cache (#106). Retry up to
+    // 3 times with 1s backoff before letting the test fail — the
+    // command is idempotent, so retrying after a partial start is
+    // safe.
+    let lastErr: unknown = null;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        compose(["up", "-d", "--build"], { stdio: "inherit" });
+        lastErr = null;
+        break;
+      } catch (err) {
+        lastErr = err;
+        if (attempt < 3) {
+          await new Promise((r) => setTimeout(r, 1000));
+        }
+      }
+    }
+    if (lastErr) throw lastErr;
 
     apiContainerName = resolveContainer("api");
     pgContainerName = resolveContainer("postgres");
