@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useRef, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import {
   postCommentAction,
   type PostCommentResult,
@@ -9,9 +10,10 @@ import {
 type Props = { slug: string; avatar: string | null; username: string };
 
 // Authenticated comment compose box. useActionState drives the
-// submission; on success we reset the textarea (the list below
-// re-renders from revalidatePath so the new comment appears at the
-// top per AC scenario 6). Errors render in-form.
+// submission; on success we reset the textarea + call
+// `router.refresh()` to pull in the new comment (AC scenario 6).
+// Refresh runs from the client after the action resolves so the
+// ordering DB-write → refetch stays strict — see #76.
 export const CommentForm = ({ slug, avatar, username }: Props) => {
   const action = postCommentAction.bind(null, slug);
   const [state, formAction, isPending] = useActionState<
@@ -19,12 +21,14 @@ export const CommentForm = ({ slug, avatar, username }: Props) => {
     FormData
   >(action, null);
   const formRef = useRef<HTMLFormElement>(null);
+  const router = useRouter();
 
   useEffect(() => {
     if (state?.ok) {
       formRef.current?.reset();
+      router.refresh();
     }
-  }, [state]);
+  }, [state, router]);
 
   return (
     <form

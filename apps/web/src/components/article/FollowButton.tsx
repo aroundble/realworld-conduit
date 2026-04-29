@@ -1,13 +1,17 @@
 "use client";
 
 import { useOptimistic, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { followAuthor, unfollowAuthor } from "@/features/articles/actions";
 
 // Client toggle for follow/unfollow. useOptimistic lets the label +
 // active class flip immediately on click, the server action runs in
-// a transition, and the RSC page revalidates so the persisted state
-// lands on the next render — matching AC scenario 2's "button
-// switches … without full reload / refresh shows persisted".
+// a transition, and `router.refresh()` re-fetches the page's RSC
+// props *after* the action resolves — matching AC scenario 2's
+// "button switches … without full reload / refresh shows persisted".
+// Driving the refetch from the client (rather than from the action
+// via revalidatePath) keeps the ordering strict: DB write → refresh.
+// See #76 for the race this closes.
 
 type Props = {
   username: string;
@@ -25,6 +29,7 @@ export const FollowButton = ({ username, following, disabled }: Props) => {
     (_, next: boolean) => next,
   );
   const [isPending, startTransition] = useTransition();
+  const router = useRouter();
 
   const onClick = () => {
     if (disabled) return;
@@ -36,6 +41,7 @@ export const FollowButton = ({ username, following, disabled }: Props) => {
       } else {
         await unfollowAuthor(username);
       }
+      router.refresh();
     });
   };
 
