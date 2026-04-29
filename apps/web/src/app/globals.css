@@ -515,7 +515,17 @@ footer {
   color: var(--conduit-text-muted);
 }
 
-[data-theme="dark"] .article-meta .author {
+/* .author link in the article-meta strip sits adjacent to the
+ * date/read-time spans. WCAG 1.4.1 requires ≥3:1 contrast between
+ * the link color and surrounding text to rely on color alone;
+ * our palette is below that in both light AND dark modes:
+ *   light: #2c7a2c link vs #373a3c text → ~1.3:1 (regression #143)
+ *   dark:  #4cc04c link vs #e8e9ea text → ~2.1:1
+ * Underline the link in both modes so the affordance is
+ * distinguishable without relying on color — matches the
+ * prose-link pattern from #93.
+ */
+.article-meta .author {
   text-decoration: underline;
 }
 
