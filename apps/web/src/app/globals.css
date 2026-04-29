@@ -345,3 +345,46 @@ footer .attribution {
     background-image: none;
   }
 }
+
+/* ── Empty states (#127) ──────────────────────────────────────
+ * Shared visual for the EmptyState component. Rendered inside
+ * `.article-preview` on the homepage / profile and as a sibling
+ * of the comment form on article detail. Keep layout calm and
+ * copy legible — these are first-run surfaces that need to
+ * nudge, not shout.
+ */
+.empty-state {
+  padding: 1.5rem 1rem;
+  text-align: center;
+}
+
+.empty-state-title {
+  margin: 0 0 0.5rem 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #373a3c;
+}
+
+.empty-state-body {
+  margin: 0 0 1rem 0;
+  color: #55595c;
+}
+
+.empty-state-body:last-child {
+  margin-bottom: 0;
+}
+
+.empty-state-actions {
+  display: inline-flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.empty-state-actions a {
+  color: var(--conduit-green);
+}
+
+.empty-state-actions a:hover {
+  color: var(--conduit-green-dark);
+}

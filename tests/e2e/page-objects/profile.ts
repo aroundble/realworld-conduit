@@ -105,9 +105,11 @@ export class ProfilePage {
   }
 
   async expectEmptyList(): Promise<void> {
-    await expect(this.articlePreviews).toContainText(
-      "No articles are here... yet.",
-    );
+    // Post-#127: empty states are rendered by the shared EmptyState
+    // component with role="status". Copy varies by tab
+    // (profile-authored vs profile-favorited); match the stable
+    // container rather than a specific string.
+    await expect(this.articlePreviews.getByRole("status")).toBeVisible();
   }
 
   // Returns article-preview headings, optionally filtered to ones

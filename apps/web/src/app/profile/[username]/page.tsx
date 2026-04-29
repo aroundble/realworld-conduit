@@ -154,6 +154,7 @@ export default async function ProfilePage({
                 pagePath={pagePath}
                 authed={authed}
                 slowMs={slowMs}
+                tab={tab}
               />
             </Suspense>
           </div>
@@ -169,12 +170,14 @@ const AsyncProfileArticles = async ({
   pagePath,
   authed,
   slowMs,
+  tab,
 }: {
   articlesPromise: Promise<ArticleListPayload>;
   currentPage: number;
   pagePath: string;
   authed: boolean;
   slowMs: number;
+  tab: "authored" | "favorited";
 }) => {
   if (slowMs > 0) {
     await new Promise((r) => setTimeout(r, slowMs));
@@ -188,6 +191,7 @@ const AsyncProfileArticles = async ({
       currentPage={currentPage}
       pagePath={pagePath}
       authed={authed}
+      context={tab === "favorited" ? "profile-favorited" : "profile-authored"}
     />
   );
 };
