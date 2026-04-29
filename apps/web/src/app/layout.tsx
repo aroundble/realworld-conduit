@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Toaster } from "sonner";
 import { Footer } from "@/components/Footer";
+import { KeyboardShortcutHelp } from "@/components/KeyboardShortcutHelp";
+import { KeyboardShortcutProvider } from "@/components/KeyboardShortcutProvider";
 import { Navbar } from "@/components/Navbar";
 import { ServiceWorkerRegistration } from "@/components/ServiceWorkerRegistration";
 import { SkipLink } from "@/components/SkipLink";
@@ -55,11 +57,18 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body>
         <ThemeProvider>
-          {/* Skip-to-content link (#161). First focusable element on
-              every page. Visually hidden until it receives keyboard
-              focus; jumps past the navbar straight to <main>. */}
-          <SkipLink />
-          <Navbar />
+          {/* Keyboard shortcuts (#160). The provider owns the global
+              keydown listener + sequence state machine; the Help
+              modal mounts here (rendered conditionally by the
+              provider context's helpOpen flag). Wraps everything
+              below so any component can open/close the help dialog
+              through useShortcutContext. */}
+          <KeyboardShortcutProvider>
+            {/* Skip-to-content link (#161). First focusable element on
+                every page. Visually hidden until it receives keyboard
+                focus; jumps past the navbar straight to <main>. */}
+            <SkipLink />
+            <Navbar />
           {/* Every page's content sits inside <main> so axe's
               landmark-one-main + region rules are satisfied globally
               (see tests/e2e/axe-config.ts + #87). `tabindex="-1"`
@@ -80,6 +89,10 @@ export default function RootLayout({
           {/* PWA service worker registration (#149). Lazy on
               `load` so it never competes with first-paint. */}
           <ServiceWorkerRegistration />
+          {/* Keyboard-shortcut help modal (#160). Renders null
+              unless helpOpen=true in the provider. */}
+          <KeyboardShortcutHelp />
+          </KeyboardShortcutProvider>
         </ThemeProvider>
       </body>
     </html>
