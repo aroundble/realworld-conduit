@@ -19,7 +19,9 @@
     "smoke": "bash scripts/smoke.sh",
     "test:conformance:smoke": "bash scripts/run-newman-smoke.sh",
     "test:conformance": "bash scripts/run-bruno-conformance.sh",
-    "test:e2e:smoke": "playwright test --config tests/e2e/playwright.config.ts",
+    "test:e2e:smoke": "playwright test --config tests/e2e/playwright.config.ts --project=desktop",
+    "test:e2e": "playwright test --config tests/e2e/playwright.config.ts",
+    "test:e2e:mobile": "playwright test --config tests/e2e/playwright.config.ts --project=mobile",
     "size-limit": "size-limit",
     "lhci": "lhci autorun --config=./lighthouserc.json"
   },
