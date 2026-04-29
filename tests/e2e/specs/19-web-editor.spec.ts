@@ -5,8 +5,21 @@ import {
   type BrowserContext,
 } from "@playwright/test";
 import { runAxe } from "../axe-config";
+import { EditorPage } from "../page-objects/editor";
 
 // BDD coverage for issue #19: editor page (create + edit).
+//
+// Every DOM selector for /editor + /editor/[slug] lives in
+// EditorPage (tests/e2e/page-objects/editor.ts). #98 Phase 2 refactor.
+//
+// Fixture note: Scenarios 1-4 all authenticate a fresh user and
+// exercise the editor form — fixture-eligible in principle. Kept
+// inline here because Scenario 4's Prisma row seeding (article
+// authored by the authed user) needs the user's username known
+// ahead of seeding; the fixture makes that awkward. Scenario 5
+// needs two users (dan editing jake's article) — inline. Scenario
+// 6 is anon — n/a. Future refactors can migrate Scenarios 1-3
+// once EditorPage exposes a "for the authed user" helper.
 
 const API_URL =
   process.env.API_URL ??
@@ -87,30 +100,19 @@ test.describe("issue #19 — editor", () => {
     const session = await registerUser(jakeApi, jake);
     await primeSession(context, session, jake);
 
-    await page.goto(`${WEB_URL}/editor`);
-    const form = page.getByRole("form", { name: "Editor" });
-    await form
-      .getByPlaceholder("Article Title")
-      .fill(`Did you train your dragon? ${id}`);
-    await form
-      .getByPlaceholder("What's this article about?")
-      .fill("Ever wonder?");
-    await form
-      .getByPlaceholder("Write your article (in markdown)")
-      .fill("You have to believe");
-    // Tag input accepts two comma-delimited tags.
-    const tagInput = form.getByLabel("Enter tags");
-    await tagInput.fill("dragons");
-    await tagInput.press("Enter");
-    await tagInput.fill("training");
-    await tagInput.press("Enter");
+    const editor = new EditorPage(page);
+    await editor.gotoCreate(WEB_URL);
+    await editor.fillForm({
+      title: `Did you train your dragon? ${id}`,
+      description: "Ever wonder?",
+      body: "You have to believe",
+      tags: ["dragons", "training"],
+    });
+    await editor.publish(/\/article\/did-you-train-your-dragon-/);
 
-    await Promise.all([
-      page.waitForURL(/\/article\/did-you-train-your-dragon-/),
-      form.getByRole("button", { name: "Publish Article" }).click(),
-    ]);
-
-    // Article detail renders the just-saved content.
+    // Article detail renders the just-saved content. These selectors
+    // are the *article* surface, not the editor — belong to a future
+    // article-detail POP (tracked as future Phase 2 work).
     await expect(page.locator(".banner h1")).toHaveText(
       `Did you train your dragon? ${id}`,
     );
@@ -125,30 +127,27 @@ test.describe("issue #19 — editor", () => {
     page,
     context,
   }) => {
-    const id = uniq();
-    const jake = `jake-${id}`;
+    const jake = `jake-${uniq()}`;
     const jakeApi = await apiContext();
     const session = await registerUser(jakeApi, jake);
     await primeSession(context, session, jake);
 
-    await page.goto(`${WEB_URL}/editor`);
-    const form = page.getByRole("form", { name: "Editor" });
-    const tagInput = form.getByLabel("Enter tags");
+    const editor = new EditorPage(page);
+    await editor.gotoCreate(WEB_URL);
 
-    await tagInput.fill("one");
-    await tagInput.press("Enter");
-    await expect(form.getByTestId("tag-pill-one")).toBeVisible();
-    await expect(tagInput).toHaveValue("");
+    await editor.addTag("one");
+    await editor.expectTagVisible("one");
+    await editor.expectTagInputEmpty();
 
     // Comma commits too (typed as part of the value).
-    await tagInput.fill("two,");
-    await expect(form.getByTestId("tag-pill-two")).toBeVisible();
-    await expect(tagInput).toHaveValue("");
+    await editor.addTagByComma("two");
+    await editor.expectTagVisible("two");
+    await editor.expectTagInputEmpty();
 
     // × removes a pill.
-    await form.getByRole("button", { name: "Remove tag one" }).click();
-    await expect(form.getByTestId("tag-pill-one")).toHaveCount(0);
-    await expect(form.getByTestId("tag-pill-two")).toBeVisible();
+    await editor.removeTag("one");
+    await editor.expectTagAbsent("one");
+    await editor.expectTagVisible("two");
   });
 
   test("Scenario 3: validation errors render at top of form and preserve other values", async ({
@@ -161,31 +160,24 @@ test.describe("issue #19 — editor", () => {
     const session = await registerUser(jakeApi, jake);
     await primeSession(context, session, jake);
 
-    await page.goto(`${WEB_URL}/editor`);
-    const form = page.getByRole("form", { name: "Editor" });
+    const editor = new EditorPage(page);
+    await editor.gotoCreate(WEB_URL);
 
     // Fill description/body/tag; leave title blank.
-    await form.getByPlaceholder("What's this article about?").fill(`desc ${id}`);
-    await form
-      .getByPlaceholder("Write your article (in markdown)")
-      .fill(`body ${id}`);
-    const tagInput = form.getByLabel("Enter tags");
-    await tagInput.fill("keeper");
-    await tagInput.press("Enter");
-
-    await form.getByRole("button", { name: "Publish Article" }).click();
+    await editor.fillForm({
+      description: `desc ${id}`,
+      body: `body ${id}`,
+      tags: ["keeper"],
+    });
+    await editor.publishNoWait();
 
     await expect(page).toHaveURL(/\/editor$/);
-    await expect(form.locator(".error-messages")).toContainText(
-      "title can't be blank",
-    );
+    await editor.expectErrorContains("title can't be blank");
     // Preserved values.
-    await expect(
-      form.getByPlaceholder("What's this article about?"),
-    ).toHaveValue(`desc ${id}`);
-    await expect(
-      form.getByPlaceholder("Write your article (in markdown)"),
-    ).toHaveValue(`body ${id}`);
+    await editor.expectFormValues({
+      description: `desc ${id}`,
+      body: `body ${id}`,
+    });
   });
 
   test("Scenario 4: edit existing own article re-posts and lands on the new slug", async ({
@@ -202,22 +194,19 @@ test.describe("issue #19 — editor", () => {
       "dragons",
     ]);
 
-    await page.goto(`${WEB_URL}/editor/${slug}`);
-    const form = page.getByRole("form", { name: "Editor" });
+    const editor = new EditorPage(page);
+    await editor.gotoEdit(WEB_URL, slug);
 
     // Prefilled.
-    await expect(form.getByPlaceholder("Article Title")).toHaveValue(
-      `How to train ${id}`,
-    );
-    await expect(form.getByPlaceholder("What's this article about?")).toHaveValue("d");
+    await editor.expectFormValues({
+      title: `How to train ${id}`,
+      description: "d",
+    });
 
     // Rename.
     const newTitle = `How to train dragons — revised ${id}`;
-    await form.getByPlaceholder("Article Title").fill(newTitle);
-    await Promise.all([
-      page.waitForURL(/\/article\/how-to-train-dragons-revised-/),
-      form.getByRole("button", { name: "Publish Article" }).click(),
-    ]);
+    await editor.titleInput.fill(newTitle);
+    await editor.publish(/\/article\/how-to-train-dragons-revised-/);
     await expect(page.locator(".banner h1")).toHaveText(newTitle);
   });
 
@@ -236,12 +225,11 @@ test.describe("issue #19 — editor", () => {
 
     const slug = await createArticle(jakeApi, `Jake's secret ${id}`);
 
-    await page.goto(`${WEB_URL}/editor/${slug}`);
+    const editor = new EditorPage(page);
+    await editor.gotoEdit(WEB_URL, slug);
     await page.waitForURL(new RegExp(`/article/${slug}`));
     // No editor form on the destination page.
-    await expect(
-      page.getByRole("form", { name: "Editor" }),
-    ).toHaveCount(0);
+    await editor.expectAbsent();
   });
 
   test("Scenario 6: /editor requires auth, redirects to /login?redirect=/editor", async ({
@@ -254,8 +242,7 @@ test.describe("issue #19 — editor", () => {
 });
 
 test("axe a11y gate on editor page (#87)", async ({ page, context }) => {
-  const id = uniq();
-  const jake = `jake-${id}`;
+  const jake = `jake-${uniq()}`;
   const api = await apiContext();
   const session = await registerUser(api, jake);
   await primeSession(context, session, jake);
