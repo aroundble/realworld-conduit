@@ -99,3 +99,46 @@ export const listTopTags = async (): Promise<TagList> => {
   }
   return res.data;
 };
+
+export type Comment = {
+  id: number;
+  createdAt: string;
+  updatedAt: string;
+  body: string;
+  author: ArticleAuthor;
+};
+
+export type ArticlePayload = { article: Article };
+export type CommentsPayload = { comments: Comment[] };
+export type CommentPayload = { comment: Comment };
+
+// 404 is a documented AC scenario; surface it as a null rather than a
+// thrown error so the page handler can call notFound() for the
+// correct Next.js 404 flow (AC scenario 8). Any other non-2xx remains
+// an exception — unexpected API errors should surface as a 500
+// boundary rather than a silent empty page.
+export const getArticle = async (slug: string): Promise<Article | null> => {
+  const cookie = await cookieHeader();
+  const res = await apiFetch<ArticlePayload>(
+    `/api/articles/${encodeURIComponent(slug)}`,
+    { cookie },
+  );
+  if (res.status === 404) return null;
+  if (!res.ok) {
+    throw new Error(`getArticle failed: ${res.status}`);
+  }
+  return res.data.article;
+};
+
+export const listComments = async (slug: string): Promise<Comment[]> => {
+  const cookie = await cookieHeader();
+  const res = await apiFetch<CommentsPayload>(
+    `/api/articles/${encodeURIComponent(slug)}/comments`,
+    { cookie },
+  );
+  if (res.status === 404) return [];
+  if (!res.ok) {
+    throw new Error(`listComments failed: ${res.status}`);
+  }
+  return res.data.comments;
+};

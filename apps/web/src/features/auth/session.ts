@@ -97,3 +97,24 @@ export const isAuthenticated = async (): Promise<boolean> => {
   // purposes; the API will reject forged tokens on its own.
   return Boolean(jar.get(SESSION_COOKIE)?.value || jar.get(USER_COOKIE)?.value);
 };
+
+// Presentation-only hint: who is the viewer, per the readable user
+// cookie. Used by the article detail page to decide between
+// author-only controls (Edit / Delete) and viewer controls (Follow /
+// Favorite) on its initial RSC render. Returning null for anonymous
+// viewers keeps the rendering branch simple.
+export const readCurrentUsername = async (): Promise<string | null> => {
+  const jar = await cookies();
+  const raw = jar.get(USER_COOKIE)?.value;
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(decodeURIComponent(raw)) as {
+      username?: unknown;
+    };
+    return typeof parsed.username === "string" && parsed.username.length > 0
+      ? parsed.username
+      : null;
+  } catch {
+    return null;
+  }
+};

@@ -3,14 +3,17 @@ import { mkdir } from "node:fs/promises";
 
 const SCREENSHOT_DIR = "tests/e2e/screenshots/15";
 const AUTH_COOKIE_NAME = "conduit-user";
+// `/article/[slug]` and `/profile/[username]` are excluded from this
+// always-200 list because they reflect real data after #18 / #20: a
+// non-existent slug/username returns 404 with a helpful "not found"
+// page instead of a ComingSoon stub. Layout-shell coverage for those
+// routes lives in 18-web-article-detail.spec.ts and the profile spec.
 const PROTECTED_ROUTES = [
   "/",
   "/login",
   "/register",
   "/settings",
   "/editor",
-  "/article/sample-slug",
-  "/profile/sample-user",
 ];
 
 test.beforeAll(async () => {
