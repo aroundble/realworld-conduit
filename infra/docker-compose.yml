@@ -107,6 +107,11 @@ services:
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3001}
       NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-http://localhost:3000}
       CONDUIT_TEST_SLOW_SUSPENSE: ${CONDUIT_TEST_SLOW_SUSPENSE:-}
+      # Error-boundary test knob (#147). Enables the /throwtest
+      # page which deliberately throws so Playwright can exercise
+      # the segment error.tsx. Production deploys leave this unset
+      # — the page responds with a harmless notice instead.
+      CONDUIT_ENABLE_THROW_TEST: ${CONDUIT_ENABLE_THROW_TEST:-1}
       # Security headers (#124). Mirrors the API's flag — only cloud
       # envs behind a TLS terminator set this; local dev runs on
       # http:// and must not emit HSTS (would lock the browser into
