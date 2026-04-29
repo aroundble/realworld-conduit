@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ArticleListItem } from "@/features/articles/queries";
+import { ArticlePreviewLink } from "./ArticlePreviewLink";
 import { FavoriteButton } from "./FavoriteButton";
 
 // Pattern adapted from yukicountry/realworld-nextjs-rsc @ f455599f
@@ -61,7 +62,10 @@ export const ArticlePreview = ({ article, authed }: Props) => {
           variant="compact"
         />
       </div>
-      <Link href={`/article/${article.slug}`} className="preview-link">
+      <ArticlePreviewLink
+        href={`/article/${article.slug}`}
+        className="preview-link"
+      >
         <h1>{article.title}</h1>
         <p>{article.description}</p>
         <span>Read more...</span>
@@ -74,7 +78,7 @@ export const ArticlePreview = ({ article, authed }: Props) => {
             ))}
           </ul>
         ) : null}
-      </Link>
+      </ArticlePreviewLink>
     </div>
   );
 };
