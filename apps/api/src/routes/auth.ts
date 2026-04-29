@@ -10,6 +10,7 @@ import {
   updateUser,
 } from "../services/auth.service.js";
 import { COOKIE_NAME, requireAuth, type UserVars } from "../middleware/jwt-cookie.js";
+import { rateLimit } from "../middleware/rate-limit.js";
 import {
   ErrorResponseSchema,
   LoginRequestSchema,
@@ -140,6 +141,19 @@ const updateUserRoute = createRoute({
 
 export const registerAuthRoutes = (app: OpenAPIHono<AppEnv>): void => {
   const authed = app as unknown as OpenAPIHono<AuthEnv>;
+
+  // Per-IP caps on the auth endpoints (#116). Register is tighter
+  // because every call creates a row; login is looser to accommodate
+  // typo-and-retry UX. Middleware short-circuits when
+  // RATE_LIMIT_ENABLED=0 so Bruno conformance runs unthrottled.
+  app.use(
+    registerRoute.getRoutingPath(),
+    rateLimit({ bucket: "users:register", limit: 5, windowSec: 60, keyBy: "ip" }),
+  );
+  app.use(
+    loginRoute.getRoutingPath(),
+    rateLimit({ bucket: "users:login", limit: 10, windowSec: 60, keyBy: "ip" }),
+  );
 
   app.openapi(registerRoute, async (c) => {
     const { user } = c.req.valid("json");

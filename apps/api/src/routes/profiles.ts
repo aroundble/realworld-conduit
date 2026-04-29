@@ -7,6 +7,7 @@ import {
   unfollowUser,
 } from "../services/profile.service.js";
 import { optionalAuth, requireAuth, type UserVars } from "../middleware/jwt-cookie.js";
+import { rateLimit } from "../middleware/rate-limit.js";
 import { ErrorResponseSchema } from "../schemas/user.js";
 import { ProfileResponseSchema } from "../schemas/profile.js";
 import { z } from "@hono/zod-openapi";
@@ -109,6 +110,16 @@ export const registerProfileRoutes = (app: OpenAPIHono<AppEnv>): void => {
   });
 
   authed.use(followRoute.getRoutingPath(), requireAuth());
+  authed.use(
+    followRoute.getRoutingPath(),
+    rateLimit({
+      bucket: "profiles:follow",
+      limit: 30,
+      windowSec: 60,
+      keyBy: "user",
+      methods: ["POST", "DELETE"],
+    }),
+  );
   authed.openapi(followRoute, async (c) => {
     const viewer = c.get("user");
     if (!viewer) return c.json(jsonError("token", "is missing"), 401);

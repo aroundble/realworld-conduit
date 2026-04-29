@@ -8,6 +8,7 @@ import {
   listComments,
 } from "../services/comments.service.js";
 import { optionalAuth, requireAuth, type UserVars } from "../middleware/jwt-cookie.js";
+import { rateLimit } from "../middleware/rate-limit.js";
 import { ErrorResponseSchema } from "../schemas/user.js";
 import {
   CommentListResponseSchema,
@@ -136,6 +137,19 @@ export const registerCommentRoutes = (app: OpenAPIHono<AppEnv>): void => {
   // share `/api/articles/{slug}/comments`, and Hono's `app.use(path,...)`
   // is method-agnostic. Handler-level `if (!viewer) → 401` is what
   // keeps anonymous GET working while POST enforces auth.
+  //
+  // Rate limit uses `methods: ["POST"]` so anonymous + authed GETs
+  // pass through unthrottled (#116).
+  authed.use(
+    addCommentRoute.getRoutingPath(),
+    rateLimit({
+      bucket: "comments:post",
+      limit: 20,
+      windowSec: 60,
+      keyBy: "user",
+      methods: ["POST"],
+    }),
+  );
   authed.openapi(addCommentRoute, async (c) => {
     const viewer = c.get("user");
     if (!viewer) return c.json(jsonError("token", "is missing"), 401);
@@ -156,6 +170,16 @@ export const registerCommentRoutes = (app: OpenAPIHono<AppEnv>): void => {
   // it's a distinct path from the shared slug/comments prefix so no
   // stacking risk on the GET route.
   authed.use(deleteCommentRoute.getRoutingPath(), requireAuth());
+  authed.use(
+    deleteCommentRoute.getRoutingPath(),
+    rateLimit({
+      bucket: "comments:delete",
+      limit: 30,
+      windowSec: 60,
+      keyBy: "user",
+      methods: ["DELETE"],
+    }),
+  );
   authed.openapi(deleteCommentRoute, async (c) => {
     const viewer = c.get("user");
     if (!viewer) return c.json(jsonError("token", "is missing"), 401);

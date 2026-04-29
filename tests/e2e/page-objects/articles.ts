@@ -71,8 +71,14 @@ export class ArticlesApi {
     private readonly baseURL: string = DEFAULT_API_URL,
   ) {}
 
-  static async newContext(baseURL = DEFAULT_API_URL): Promise<ArticlesApi> {
-    const ctx = await request.newContext({ baseURL });
+  static async newContext(
+    baseURL = DEFAULT_API_URL,
+    extraHeaders?: Record<string, string>,
+  ): Promise<ArticlesApi> {
+    const ctx = await request.newContext({
+      baseURL,
+      extraHTTPHeaders: extraHeaders,
+    });
     return new ArticlesApi(ctx, baseURL);
   }
 

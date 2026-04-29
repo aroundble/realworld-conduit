@@ -128,3 +128,11 @@ process env; nothing hardcoded in `src/`. Portability checklist
 - The generator's "walking skeleton" PR is large-ish: it must lay down the monorepo, both apps, docker-compose, CI scaffold, and the ADR-tracker in one coherent step. Acceptable because every subsequent feature PR is small (one route + one page + one spec).
 - The HTTP-only cookie deviation from the literal spec header is a *deliberate* divergence. The first feature to consume it (Auth — register / login) will document this in ADR 003, and the generator's PR must include a compatibility `Authorization: Token` header echo so the canonical Postman collection still passes.
 - OpenAPI generation from Hono means the frontend type-safe client is regenerated whenever backend routes change. First time this regen happens, both apps bump; treat as a normal feature-branch step, not a cross-cutting lock.
+
+## Addendum — Rate limiting (2026-04-29, #116)
+
+- **Storage**: Postgres `RateLimit` table, fixed-window counter per `(bucket, key, windowStart)`. One upsert per request.
+- **Considered alternative — Redis**: faster under true high load (hash with TTL), but adds a new dependency and SPOF. Postgres is already up; the cost of a single upsert at the expected request rate is trivially <1ms.
+- **Model**: fixed-window counter over true sliding window. Fixed-window allows a 2× burst at the window boundary but the AC's "≤ N requests in ≤ windowSec always caught" promise holds.
+- **Default**: `RATE_LIMIT_ENABLED=1` in production compose env; `0` in dev so the Playwright suite's burst writes don't false-fail. Spec 116 skips when the flag is off and CI runs it in a dedicated `RATE_LIMIT_ENABLED=1` pass.
+- **Per-endpoint budgets + envelopes**: see `docs/rate-limits.md`.

@@ -14,6 +14,7 @@ import {
   updateArticle,
 } from "../services/articles.service.js";
 import { optionalAuth, requireAuth, type UserVars } from "../middleware/jwt-cookie.js";
+import { rateLimit } from "../middleware/rate-limit.js";
 import { ErrorResponseSchema } from "../schemas/user.js";
 import {
   ArticleListResponseSchema,
@@ -315,6 +316,18 @@ export const registerArticleRoutes = (app: OpenAPIHono<AppEnv>): void => {
     return c.json(result, 200);
   });
 
+  // Article-write throttle (#116) — per-user, covers POST on the
+  // collection path.
+  authed.use(
+    createArticleRoute.getRoutingPath(),
+    rateLimit({
+      bucket: "articles:write",
+      limit: 30,
+      windowSec: 60,
+      keyBy: "user",
+      methods: ["POST"],
+    }),
+  );
   authed.openapi(createArticleRoute, async (c) => {
     const viewer = c.get("user");
     if (!viewer) return c.json(jsonError("token", "is missing"), 401);
@@ -351,6 +364,19 @@ export const registerArticleRoutes = (app: OpenAPIHono<AppEnv>): void => {
   // above and 401 anonymous GETs. Instead the handlers do an explicit
   // `if (!viewer) → 401` check, which yields the same contract
   // (anonymous PUT/DELETE fail 401) without breaking anonymous reads.
+  //
+  // Rate-limit middleware uses the same trick: `methods: [PUT, DELETE]`
+  // so anonymous + authed GETs pass untouched.
+  authed.use(
+    updateArticleRoute.getRoutingPath(),
+    rateLimit({
+      bucket: "articles:write",
+      limit: 30,
+      windowSec: 60,
+      keyBy: "user",
+      methods: ["PUT", "DELETE"],
+    }),
+  );
   authed.openapi(updateArticleRoute, async (c) => {
     const viewer = c.get("user");
     if (!viewer) return c.json(jsonError("token", "is missing"), 401);
@@ -390,6 +416,16 @@ export const registerArticleRoutes = (app: OpenAPIHono<AppEnv>): void => {
   // that `optionalAuth()` already covers, so mounting `requireAuth()`
   // here is safe — it only affects POST + DELETE on this sub-path.
   authed.use(favoriteRoute.getRoutingPath(), requireAuth());
+  authed.use(
+    favoriteRoute.getRoutingPath(),
+    rateLimit({
+      bucket: "articles:favorite",
+      limit: 30,
+      windowSec: 60,
+      keyBy: "user",
+      methods: ["POST", "DELETE"],
+    }),
+  );
   authed.openapi(favoriteRoute, async (c) => {
     const viewer = c.get("user");
     if (!viewer) return c.json(jsonError("token", "is missing"), 401);
