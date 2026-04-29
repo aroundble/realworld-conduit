@@ -279,6 +279,14 @@ is_session_awaiting_human_input() {
   # typical terminal (top border, prompt row, bottom border, footer).
   tail=$(tmux capture-pane -t "$target" -p 2>/dev/null | tail -8 || true)
   [[ -z "$tail" ]] && return 1
+  # v0.2.44: if this is a Claude Code permission prompt, it's NOT
+  # operator input — it's the CLI blocking on a y/n. The permission
+  # prompt auto-dismiss path (check_permission_prompt below) handles
+  # it by sending `1` (yes); here we just do NOT misclassify as
+  # human input. Returning 1 (false) lets other logic run.
+  if is_permission_prompt "$role"; then
+    return 1
+  fi
   # Look for a non-empty input line: `❯` followed by at least one
   # non-space character on the same line.
   if echo "$tail" | grep -qE '❯[[:space:]]+[^[:space:]]'; then
@@ -290,6 +298,61 @@ is_session_awaiting_human_input() {
     return 0
   fi
   return 1
+}
+
+# v0.2.44: Detect Claude Code's permission prompt. Observed shape:
+#
+#   Claude requested permissions to edit
+#   /some/path
+#   which is a sensitive file.
+#
+#   Do you want to proceed?
+#   ❯ 1. Yes
+#     2. Yes, and always allow access to ...
+#     3. No
+#
+# Even under --dangerously-skip-permissions, certain "sensitive" paths
+# (~/.claude/projects/**, anything outside CLAUDE_PROJECT_DIR) still
+# trigger this prompt. Without auto-dismissal, the pane waits forever
+# and watchdog's normal "operator typing" detection silences all wakes
+# — the 29-hour realworld-conduit deadlock of 2026-04-29 00:00Z.
+#
+# Returns 0 (true) if a permission prompt is currently displayed.
+is_permission_prompt() {
+  local role="$1"
+  has_session "$role" || return 1
+  local target tail
+  target=$(target_for_role "$role")
+  tail=$(tmux capture-pane -t "$target" -p 2>/dev/null | tail -20 || true)
+  [[ -z "$tail" ]] && return 1
+  # Signature strings from the permission prompt UI. Match any of them.
+  if echo "$tail" | grep -qE 'Claude requested permissions to|Do you want to proceed\?|❯ 1\. Yes'; then
+    return 0
+  fi
+  return 1
+}
+
+# v0.2.44: Auto-dismiss Claude Code's permission prompt by sending `1`
+# (which selects "Yes" for this invocation only, not "Yes, always").
+# We deliberately do NOT select `2` ("always allow") because that
+# would bypass the permission system more broadly than the operator
+# might want. The real fix is allowlisting the path in
+# .claude/settings.json (see v0.2.44 changelog); auto-dismissing is
+# a runtime safety net for paths that slipped through.
+#
+# Logged, so operator can audit what the harness auto-approved.
+dismiss_permission_prompt() {
+  local role="$1"
+  local target
+  target=$(target_for_role "$role")
+  # Capture what the prompt is asking about (one-line signature)
+  local subject
+  subject=$(tmux capture-pane -t "$target" -p 2>/dev/null | tail -20 \
+    | grep -A 3 'Claude requested permissions' | tail -3 | head -1 | tr -s ' ' | head -c 120)
+  log "PERMISSION PROMPT: $role — auto-dismissing with \`1\` (Yes). subject=${subject:-unknown}"
+  tmux send-keys -t "$target" "1" 2>/dev/null || true
+  sleep 1
+  tmux send-keys -t "$target" Enter 2>/dev/null || true
 }
 
 # Handoff-in-progress check. While a role is self-handing-off to a
@@ -910,6 +973,16 @@ run_cycle() {
   # wake naturally on the next cycle if planner files new work.
   check_refinement_wake
   check_full_regression_wake
+  # v0.2.44: auto-dismiss permission prompts. Scan each role; if a
+  # permission prompt is up, send `1` (Yes). Without this, the pane
+  # hangs forever and is_session_awaiting_human_input misclassifies
+  # the prompt as "operator typing" — 29h stuck-on-prompt deadlock
+  # observed on realworld-conduit 2026-04-29 00:00Z.
+  for role in $ROLES; do
+    if is_permission_prompt "$role"; then
+      dismiss_permission_prompt "$role"
+    fi
+  done
   # v0.2.38: token-ledger sample — every tick, read the Claude Code
   # session JSONL under ~/.claude/projects/<slugified-worktree>/*.jsonl
   # and append a summary row to $HARNESS_STATE_DIR/token-ledger-<role>.jsonl.

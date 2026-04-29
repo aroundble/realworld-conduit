@@ -38,7 +38,13 @@
       "Edit(.claude/skills/**)",
       "Write(.claude/skills/**)",
       "Edit(.githarness/**)",
-      "Write(.githarness/**)"
+      "Write(.githarness/**)",
+      "Edit(/home/*/.claude/projects/**)",
+      "Write(/home/*/.claude/projects/**)",
+      "Edit(~/.claude/projects/**)",
+      "Write(~/.claude/projects/**)",
+      "Edit(tests/baseline-cache/**)",
+      "Write(tests/baseline-cache/**)"
     ],
     "deny": [
       "Bash(rm -rf /:*)",
