@@ -100,6 +100,7 @@ decision` block pointing to the entry below by section number.
 
 - **Adapt**: `src/app/layout.tsx` pattern + header nav from `yukicountry-realworld-nextjs-rsc`. Route structure: `/` (home), `/login`, `/register`, `/settings`, `/editor[/[slug]]`, `/article/[slug]`, `/profile/[username]`.
 - **Redesign**: none — the spec dictates paths.
+- **Visual-palette deviation (#90, 2026-04-29)**: the canonical RealWorld demo's accent green (`#5cb85c` + `rgba(0,0,0,0.3)` inactive nav links) fails WCAG AA contrast — 10-11 nodes per page surfaced by #87's axe gate. Deviation approved in #90: `#2c7a2c` replaces `#5cb85c` across `--conduit-green` / `--conduit-banner-bg`, and inactive nav links darken to `#595959`. The demo remains the UX/IA reference; only the hex values change. Visual character preserved (greens stay greens, banner stays green) — confirmed by spec 15's canonical-styling assertion which still sniffs the banner RGB (updated to `rgb(44, 122, 44)`).
 
 ### §11 — Article list UI (global + your feed + tag-filter)
 

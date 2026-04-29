@@ -4,18 +4,30 @@
  * RealWorld canonical look. The Conduit style guide ships a global
  * stylesheet that the spec's acceptance tests (and every reference
  * implementation) sniff for: Source Sans Pro body font, green
- * (#5cb85c) navbar active colour, and a dark-green banner on the
- * home page. Tailwind handles layout + utilities; this companion
- * layer pins the spec-mandated classes so `.navbar`, `.home-page
- * .banner`, and `.tag-pill` render to spec no matter which page
- * references them.
+ * navbar active colour, and a green banner on the home page.
+ * Tailwind handles layout + utilities; this companion layer pins
+ * the spec-mandated classes so `.navbar`, `.home-page .banner`,
+ * and `.tag-pill` render to spec no matter which page references
+ * them.
+ *
+ * Palette deviation (#90): the canonical demo greens (#5cb85c brand,
+ * banner #5cb85c, inactive nav-link rgba(0,0,0,0.3)) fail WCAG AA
+ * contrast on white. We deviate to darker variants that preserve
+ * the "fresh / action" character but pass the AA gate. The demo
+ * remains the UX/IA reference; only the hex values change. See
+ * ADR 000 §10 for the visual-parity rationale.
  */
 
 :root {
-  --conduit-green: #5cb85c;
-  --conduit-green-dark: #4aa14a;
-  --conduit-banner-bg: #5cb85c;
-  --conduit-banner-shadow: #3d8b3d;
+  /* One brand green for every surface that carries the Conduit
+     accent — links, navbar-brand, .btn-primary background (with
+     white text on it), banner. #2c7a2c yields ratio 5.41 against
+     white (passes AA 4.5 both ways: dark-on-white text and
+     white-on-dark text). Canonical #5cb85c scored 2.48. */
+  --conduit-green: #2c7a2c;
+  --conduit-green-dark: #1d5a1d;
+  --conduit-banner-bg: #2c7a2c;
+  --conduit-banner-shadow: #1d5a1d;
 }
 
 body {
@@ -86,7 +98,9 @@ a:focus {
 }
 
 .nav-link {
-  color: rgba(0, 0, 0, 0.3);
+  /* #595959 = rgba(0,0,0,0.65) equivalent — passes AA (ratio 7.0)
+     on the white navbar. Canonical rgba(0,0,0,0.3) scored 2.09. */
+  color: #595959;
   padding: 0.5rem 0.5rem;
   transition: color 120ms ease;
 }
@@ -181,7 +195,9 @@ footer .logo-font {
 }
 
 footer .attribution {
-  color: #bbb;
+  /* #595959 on the #f3f3f3 footer bg → ratio 6.7, passes AA.
+     Canonical #bbb scored ~1.9. */
+  color: #595959;
   font-size: 0.8rem;
 }
 

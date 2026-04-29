@@ -129,7 +129,10 @@ test("canonical RealWorld styling — Source Sans Pro + green navbar + banner", 
   const bannerBg = await page
     .locator(".home-page .banner")
     .evaluate((el) => getComputedStyle(el).backgroundColor);
-  expect(bannerBg).toBe("rgb(92, 184, 92)");
+  // Palette deviation per #90 — darker green #2c7a2c for WCAG AA
+  // compliance on the white-on-green banner. Canonical #5cb85c
+  // (rgb 92,184,92) failed AA; rgb(44,122,44) passes at ratio 5.53.
+  expect(bannerBg).toBe("rgb(44, 122, 44)");
 
   await page.screenshot({ path: `${SCREENSHOT_DIR}/scenario-5-styling.png` });
 });
