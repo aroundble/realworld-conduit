@@ -16,6 +16,7 @@ export const config = {
   webUrl: required("WEB_URL", "http://localhost:3000"),
   jwtSecret: required("JWT_SECRET", nodeEnv === "production" ? undefined : "dev-only-jwt-secret-do-not-use-in-prod"),
   jwtTtlSeconds: Number.parseInt(process.env.JWT_TTL_SECONDS ?? "604800", 10),
+  jwtClockSkewSeconds: Number.parseInt(process.env.JWT_CLOCK_SKEW_SECONDS ?? "5", 10),
   bcryptCost: Number.parseInt(process.env.BCRYPT_COST ?? "10", 10),
   cookieDomain: process.env.COOKIE_DOMAIN ?? "localhost",
   cookieSecure: (process.env.COOKIE_SECURE ?? "false").toLowerCase() === "true",

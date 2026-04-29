@@ -11,6 +11,7 @@
   "scripts": {
     "lint": "pnpm -r --parallel run lint",
     "typecheck": "pnpm -r --parallel run typecheck",
+    "test": "pnpm -r --if-present --parallel run test",
     "build": "pnpm -r run build",
     "dev": "pnpm -r --parallel run dev",
     "compose:up": "docker compose -f infra/docker-compose.yml up -d --build",
