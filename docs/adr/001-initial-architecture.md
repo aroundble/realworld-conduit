@@ -143,3 +143,11 @@ process env; nothing hardcoded in `src/`. Portability checklist
 - **UI surface**: `GET /api/docs` renders Scalar (`@scalar/hono-api-reference`) — modern, lightweight Vue-based reference page. Chosen over Swagger UI for bundle size + default UX; swappable via the route handler.
 - **Drift gate**: `pnpm openapi:emit` writes `docs/openapi-snapshot.json`. CI's `openapi-drift` job runs the emit and `git diff --exit-code`s the snapshot; a schema change without a refresh fails the PR. Generator refreshes the snapshot in the same PR as the route change.
 - **A11y carve-out**: Scalar's vendor Vue DOM surfaces a handful of critical + serious axe violations (sidebar aria-allowed-attr, button-name on collapse toggles, contrast inside syntax-highlighted code blocks). We don't own that DOM — the spec 123 scenario-4 axe gate was dropped to a structural assertion (`/api/docs` reachable + references the JSON spec). Follow-up: file a vendor-upgrade or swap-UI issue once Scalar ships an a11y-conformant build.
+
+## Addendum — Request body-size limits (2026-04-29, #126)
+
+- **Implementation**: `hono/body-limit` wrapped in `apps/api/src/middleware/body-limit.ts`. Two tiers so the DoS shield (global 1 MB) is independent from the business ceiling on article payloads (100 KB).
+- **Placement**: global cap wired at `app.use("*", …)` after request-id + logger so the 413 is traceable; per-endpoint cap on article routes registered *before* the rate-limit middleware so an oversized POST 413s without consuming the write bucket.
+- **Response shape**: `{ "errors": { "body": ["payload too large, max NKB"] } }` — same envelope as the spec-422 validator hook so clients have one error shape to parse. No `Retry-After` (413 is not transient).
+- **Env knobs**: `API_BODY_LIMIT_GLOBAL_KB` (default 1024), `API_BODY_LIMIT_ARTICLE_KB` (default 100). Defaults ship everywhere; no disable knob.
+- **Why not streaming uploads**: out of scope — this codebase has no binary upload path. If file attachments ever land, they get their own multipart middleware with its own ceiling.

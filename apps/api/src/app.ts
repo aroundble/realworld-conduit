@@ -2,6 +2,7 @@ import { OpenAPIHono } from "@hono/zod-openapi";
 import { Scalar } from "@scalar/hono-api-reference";
 import type { Context } from "hono";
 import type { ZodIssue } from "zod";
+import { globalBodyLimit } from "./middleware/body-limit.js";
 import { corsMiddleware } from "./middleware/cors.js";
 import { errorHandler } from "./middleware/error.js";
 import { requestLogger } from "./middleware/logger.js";
@@ -48,6 +49,12 @@ export const createApp = (): OpenAPIHono<AppEnv> => {
   app.use("*", requestId());
   app.use("*", requestLogger());
   app.use("*", corsMiddleware());
+  // Global body-size cap (#126). DoS shield — rejects oversized
+  // bodies before they hit the zod validators or the DB layer. Runs
+  // after request-id + logger so the 413 carries a request id and is
+  // traceable in logs. GET / HEAD have no body; the underlying hono
+  // middleware short-circuits there.
+  app.use("*", globalBodyLimit());
 
   registerHealthzRoute(app);
   registerAuthRoutes(app);

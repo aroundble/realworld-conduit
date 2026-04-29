@@ -56,6 +56,12 @@ services:
       # Production compose sets RATE_LIMIT_ENABLED=1; spec 116
       # explicitly enables it via a separate test run in CI.
       RATE_LIMIT_ENABLED: ${RATE_LIMIT_ENABLED:-}
+      # Body-size caps (#126). Global floor applies to every mutating
+      # endpoint; the smaller article cap applies to POST /articles +
+      # PUT /articles/{slug}. Defaults (1024 / 100) are enforced by
+      # apps/api/src/middleware/body-limit.ts when these are unset.
+      API_BODY_LIMIT_GLOBAL_KB: ${API_BODY_LIMIT_GLOBAL_KB:-}
+      API_BODY_LIMIT_ARTICLE_KB: ${API_BODY_LIMIT_ARTICLE_KB:-}
     ports:
       - "${API_HOST_PORT:-3001}:3001"
     healthcheck:
