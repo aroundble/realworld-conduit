@@ -46,14 +46,36 @@ envelope. Headers:
 - `X-RateLimit-Remaining: 0`
 - `X-RateLimit-Reset: <epoch-seconds>` — window end timestamp.
 
-## Disable knob
+## Enable / disable knob
 
-`RATE_LIMIT_ENABLED=0` short-circuits the middleware. Used by:
+`RATE_LIMIT_ENABLED=1` turns the middleware on; any other value
+(including unset) short-circuits it. Default is **off** so local
+dev + the main Playwright suite run burst-writes without hitting
+per-IP buckets.
 
-- Bruno conformance runs (50+ writes back-to-back within seconds).
-- Local flake investigation.
+## Deployment discipline
 
-Set at the env-var level on the API container. Default on (1).
+- **Production**: always `RATE_LIMIT_ENABLED=1` — the production
+  compose / deployment env must set it explicitly. The default
+  is off for dev ergonomics; any deploy that ships without the
+  flag has no rate limiting at all.
+- **CI**: the `rate-limit-spec` job in
+  `.github/workflows/ci.yml` boots compose with
+  `RATE_LIMIT_ENABLED=1` and runs only
+  `tests/e2e/specs/116-api-rate-limit.spec.ts`. The `smoke` job
+  leaves the flag off so the ~130 other specs stay green
+  (running the full suite with the flag on exhausts per-IP
+  budgets mid-run — ~40 registers in 60s). That split means
+  (a) the middleware is exercised on every PR, (b) the rest
+  of the suite stays fast.
+- **Local spec 116 run**:
+  ```sh
+  RATE_LIMIT_ENABLED=1 $COMPOSE up -d --build --force-recreate api
+  pnpm test:e2e:rate-limit
+  ```
+- **Bruno conformance**: leave the flag off. The canonical
+  collection fires 50+ writes back-to-back and would false-fail
+  under the live limits.
 
 ## Retuning
 
