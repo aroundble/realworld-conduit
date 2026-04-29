@@ -5,9 +5,26 @@ import {
   type BrowserContext,
 } from "@playwright/test";
 import { runAxe } from "../axe-config";
+import { SettingsPage } from "../page-objects/settings";
+import { test as authedTest } from "../fixtures/authStorage";
 
 // BDD coverage for issue #21: settings page (#21).
 // Six scenarios matching the AC block.
+//
+// Every DOM selector lives in SettingsPage
+// (tests/e2e/page-objects/settings.ts). #102 Phase 2 refactor.
+//
+// Fixture migration: Scenarios 2 + axe gate use the shared
+// `authedContext` fixture from #35 Phase 1. Scenarios 3, 4, 5 keep
+// inline priming because they mutate the authed user's state
+// (duplicate-email seeds a second user, password rotation
+// invalidates the existing cookie, logout clears cookies) — sharing
+// a worker-scoped user across those would bleed state between
+// sibling tests. Scenario 1 reads only, fixture-eligible, but we
+// already have a fixture-driven proof-of-shape test below; keeping
+// Scenario 1 inline keeps the "fresh user, empty form" assertion
+// honest (fixture user's DB row is never fresh after the first
+// test runs against it).
 
 const API_URL =
   process.env.API_URL ??
@@ -68,40 +85,38 @@ test.describe("issue #21 — settings page", () => {
     page,
     context,
   }) => {
-    const id = uniq();
-    const jake = `jake-${id}`;
+    const jake = `jake-${uniq()}`;
     const jakeApi = await apiContext();
     const session = await registerUser(jakeApi, jake);
     await primeSession(context, session, jake);
 
-    await page.goto(`${WEB_URL}/settings`);
-    const form = page.getByRole("form", { name: "Settings" });
-    await expect(form).toBeVisible();
+    const settings = new SettingsPage(page);
+    await settings.goto(WEB_URL);
+    await settings.expectFormVisible();
 
     // Image + bio empty on a fresh user; username + email reflect registration.
-    await expect(form.getByPlaceholder("URL of profile picture")).toHaveValue("");
-    await expect(form.getByPlaceholder("Your Name")).toHaveValue(jake);
-    await expect(form.getByPlaceholder("Short bio about you")).toHaveValue("");
-    await expect(form.getByPlaceholder("Email")).toHaveValue(`${jake}@jake.jake`);
-    await expect(form.getByPlaceholder("New Password")).toHaveValue("");
+    await settings.expectFormValues({
+      image: "",
+      username: jake,
+      bio: "",
+      email: `${jake}@jake.jake`,
+      newPassword: "",
+    });
   });
 
   test("Scenario 2: update bio succeeds and redirects to profile", async ({
     page,
     context,
   }) => {
-    const id = uniq();
-    const jake = `jake-${id}`;
+    const jake = `jake-${uniq()}`;
     const jakeApi = await apiContext();
     const session = await registerUser(jakeApi, jake);
     await primeSession(context, session, jake);
 
-    await page.goto(`${WEB_URL}/settings`);
-    const form = page.getByRole("form", { name: "Settings" });
-    await form.getByPlaceholder("Short bio about you").fill("I like cats");
-    await form.getByRole("button", { name: "Update Settings" }).click();
-
-    await page.waitForURL(`${WEB_URL}/profile/${jake}`);
+    const settings = new SettingsPage(page);
+    await settings.goto(WEB_URL);
+    await settings.fillForm({ bio: "I like cats" });
+    await settings.submitUpdateAndWait(`${WEB_URL}/profile/${jake}`);
 
     // Persisted via API.
     const me = await jakeApi.get("/api/user");
@@ -123,37 +138,31 @@ test.describe("issue #21 — settings page", () => {
     await registerUser(danApi, dan);
     await primeSession(context, jakeSession, jake);
 
-    await page.goto(`${WEB_URL}/settings`);
-    const form = page.getByRole("form", { name: "Settings" });
-    const email = form.getByPlaceholder("Email");
-    await email.fill(`${dan}@jake.jake`);
-    await form.getByRole("button", { name: "Update Settings" }).click();
+    const settings = new SettingsPage(page);
+    await settings.goto(WEB_URL);
+    await settings.fillForm({ email: `${dan}@jake.jake` });
+    await settings.submitUpdate();
 
     // Stays on /settings, inline error renders.
     await expect(page).toHaveURL(/\/settings/);
-    await expect(page.locator(".error-messages")).toContainText(
-      "email has already been taken",
-    );
+    await settings.expectErrorContains("email has already been taken");
     // The attempted (duplicate) email is preserved in the field.
-    await expect(email).toHaveValue(`${dan}@jake.jake`);
+    await settings.expectFormValues({ email: `${dan}@jake.jake` });
   });
 
   test("Scenario 4: password update issues fresh cookie and keeps user authed", async ({
     page,
     context,
   }) => {
-    const id = uniq();
-    const jake = `jake-${id}`;
+    const jake = `jake-${uniq()}`;
     const jakeApi = await apiContext();
     const session = await registerUser(jakeApi, jake);
     await primeSession(context, session, jake);
 
-    await page.goto(`${WEB_URL}/settings`);
-    const form = page.getByRole("form", { name: "Settings" });
-    await form.getByPlaceholder("New Password").fill("newpassword");
-    await form.getByRole("button", { name: "Update Settings" }).click();
-
-    await page.waitForURL(`${WEB_URL}/profile/${jake}`);
+    const settings = new SettingsPage(page);
+    await settings.goto(WEB_URL);
+    await settings.fillForm({ newPassword: "newpassword" });
+    await settings.submitUpdateAndWait(`${WEB_URL}/profile/${jake}`);
 
     // Verify no 401 on the next authed page — if the rotated token
     // wasn't written back, the navbar (which reads conduit-user) would
@@ -171,16 +180,14 @@ test.describe("issue #21 — settings page", () => {
     page,
     context,
   }) => {
-    const id = uniq();
-    const jake = `jake-${id}`;
+    const jake = `jake-${uniq()}`;
     const jakeApi = await apiContext();
     const session = await registerUser(jakeApi, jake);
     await primeSession(context, session, jake);
 
-    await page.goto(`${WEB_URL}/settings`);
-    await page
-      .getByRole("button", { name: /Or click here to logout/ })
-      .click();
+    const settings = new SettingsPage(page);
+    await settings.goto(WEB_URL);
+    await settings.logout();
 
     await page.waitForURL(`${WEB_URL}/`);
 
@@ -208,8 +215,7 @@ test.describe("issue #21 — settings page", () => {
 });
 
 test("axe a11y gate on settings page (#87)", async ({ page, context }) => {
-  const id = uniq();
-  const jake = `jake-${id}`;
+  const jake = `jake-${uniq()}`;
   const api = await apiContext();
   const session = await registerUser(api, jake);
   await primeSession(context, session, jake);
@@ -218,32 +224,24 @@ test("axe a11y gate on settings page (#87)", async ({ page, context }) => {
 });
 
 // ---------------------------------------------------------------
-// #35 Phase 1 — fixture-driven scenario (proof of shape).
-//
-// The existing Scenarios 1-6 above prime the session inline via the
-// per-test `primeSession()` helper. This block uses the new
-// `authedContext` fixture from tests/e2e/fixtures/authStorage.ts
-// instead — suite-level user (per-worker), shared cookies. As
-// Phase 2 per-feature PRs migrate each spec, the inline
-// primeSession pattern goes away in favour of this fixture.
+// #35 Phase 1 proof-of-shape → retained via #102 as the fixture-
+// driven entry point. The authedContext fixture composes with
+// SettingsPage cleanly; inline-primed Scenarios 1-5 remain for
+// flows that need fresh-user / mutation semantics.
 // ---------------------------------------------------------------
-
-import { test as authedTest } from "../fixtures/authStorage";
 
 authedTest(
   "Scenario (via fixture): authed user lands on settings with prefilled form",
   async ({ authedContext, authedUser }) => {
     const page = await authedContext.newPage();
     try {
-      await page.goto(`${WEB_URL}/settings`);
-      const form = page.getByRole("form", { name: "Settings" });
-      await expect(form).toBeVisible();
-      await expect(form.getByPlaceholder("Your Name")).toHaveValue(
-        authedUser.username,
-      );
-      await expect(form.getByPlaceholder("Email")).toHaveValue(
-        `${authedUser.username}@jake.jake`,
-      );
+      const settings = new SettingsPage(page);
+      await settings.goto(WEB_URL);
+      await settings.expectFormVisible();
+      await settings.expectFormValues({
+        username: authedUser.username,
+        email: `${authedUser.username}@jake.jake`,
+      });
     } finally {
       await page.close();
     }
