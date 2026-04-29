@@ -21,6 +21,18 @@ COPY --from=deps /repo/apps/web/node_modules ./apps/web/node_modules
 COPY package.json pnpm-workspace.yaml .npmrc ./
 COPY apps/web ./apps/web
 ENV NEXT_TELEMETRY_DISABLED=1
+# Bake the browser-visible API URL into the build so next.config.ts's
+# CSP `connect-src` directive (#124) reflects the host's mapped port.
+# Next.js evaluates next.config at build time and materializes the
+# resolved headers into routes-manifest.json; runtime env changes
+# won't flip the CSP. Pass via `--build-arg NEXT_PUBLIC_API_URL=...`
+# per deploy target. Defaults keep local builds on http://localhost:3001.
+ARG NEXT_PUBLIC_API_URL=http://localhost:3001
+ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+# ENFORCE_HSTS also has to be baked in for the same reason — the
+# header list is computed at build time in next.config.
+ARG ENFORCE_HSTS
+ENV ENFORCE_HSTS=${ENFORCE_HSTS}
 RUN corepack enable && pnpm --filter @conduit/web build
 
 # ---- runner ----

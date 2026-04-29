@@ -151,3 +151,11 @@ process env; nothing hardcoded in `src/`. Portability checklist
 - **Response shape**: `{ "errors": { "body": ["payload too large, max NKB"] } }` — same envelope as the spec-422 validator hook so clients have one error shape to parse. No `Retry-After` (413 is not transient).
 - **Env knobs**: `API_BODY_LIMIT_GLOBAL_KB` (default 1024), `API_BODY_LIMIT_ARTICLE_KB` (default 100). Defaults ship everywhere; no disable knob.
 - **Why not streaming uploads**: out of scope — this codebase has no binary upload path. If file attachments ever land, they get their own multipart middleware with its own ceiling.
+
+## Addendum — Security headers (2026-04-29, #124)
+
+- **API**: `hono/secure-headers` wrapped in `apps/api/src/middleware/security-headers.ts`; ships `nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy` (camera/geolocation/microphone empty), plus secure-headers' default COOP/CORP/Origin-Agent-Cluster set. HSTS gated on `ENFORCE_HSTS=true`.
+- **Web**: `apps/web/next.config.ts` `async headers()` emits CSP + the same baseline headers. CSP stance is **moderate** — keeps `'unsafe-inline'` on script + style so Next.js's runtime scripts work out of the box. Nonce-based CSP is a follow-up (requires middleware rewire).
+- **Build-time bake**: CSP + HSTS are resolved at `next build` time and written into `routes-manifest.json`; `NEXT_PUBLIC_API_URL` and `ENFORCE_HSTS` must therefore flow through as Docker build args per deploy target. `infra/docker-compose.yml` passes both from `.env`.
+- **HSTS in local dev**: forbidden. A 2-year preload pin on `localhost` locks the browser into HTTPS-only for every other dev server on the host. All local envs keep `ENFORCE_HSTS` unset.
+- **Reference**: `docs/security-headers.md` — full table, tuning guide, verification commands.

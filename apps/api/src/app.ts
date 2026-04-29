@@ -7,6 +7,7 @@ import { corsMiddleware } from "./middleware/cors.js";
 import { errorHandler } from "./middleware/error.js";
 import { requestLogger } from "./middleware/logger.js";
 import { requestId, type RequestIdVars } from "./middleware/request-id.js";
+import { securityHeaders } from "./middleware/security-headers.js";
 import { registerArticleRoutes } from "./routes/articles.js";
 import { registerAuthRoutes } from "./routes/auth.js";
 import { registerCommentRoutes } from "./routes/comments.js";
@@ -49,6 +50,12 @@ export const createApp = (): OpenAPIHono<AppEnv> => {
   app.use("*", requestId());
   app.use("*", requestLogger());
   app.use("*", corsMiddleware());
+  // Baseline security headers (#124). Sits after CORS so the CORS
+  // preflight response still carries the OPTIONS headers CORS owns,
+  // then secure-headers stacks nosniff / DENY / Referrer-Policy /
+  // Permissions-Policy on the already-prepared response. HSTS is
+  // gated by ENFORCE_HSTS=true (off for local HTTP).
+  app.use("*", securityHeaders());
   // Global body-size cap (#126). DoS shield — rejects oversized
   // bodies before they hit the zod validators or the DB layer. Runs
   // after request-id + logger so the 413 carries a request id and is
