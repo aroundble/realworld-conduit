@@ -76,3 +76,25 @@ model User {
   following  User[]    @relation("UserFollows")
   comments   Comment[]
 }
+
+
+// Rate-limit counter table (#116). One row per active
+// (bucket, key, windowStart) tuple. Fixed-window counter — the
+// middleware increments `hits` on each request; when `hits > limit`
+// within the same window, it rejects 429. Cleaner than a true
+// sliding window (just 1 upsert per request) and covers the AC.
+//
+// The `windowStart` column is the UTC-second boundary of the fixed
+// window (computed `windowStartSec = floor(now / windowSec)`), so
+// every row is self-describing without a clock sync step.
+model RateLimit {
+  id          Int      @id @default(autoincrement())
+  bucket      String
+  key         String
+  windowStart Int
+  hits        Int      @default(0)
+  updatedAt   DateTime @default(now()) @updatedAt
+
+  @@unique([bucket, key, windowStart], name: "rate_limit_slot")
+  @@index([updatedAt])
+}

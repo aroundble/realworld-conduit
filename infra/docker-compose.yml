@@ -51,6 +51,11 @@ services:
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
       WEB_URL: ${WEB_URL:-http://localhost:3000}
       LOG_LEVEL: ${LOG_LEVEL:-info}
+      # Rate limiting (#116). OFF by default (empty string) so burst-
+      # write test suites + Bruno conformance don't trip the limits.
+      # Production compose sets RATE_LIMIT_ENABLED=1; spec 116
+      # explicitly enables it via a separate test run in CI.
+      RATE_LIMIT_ENABLED: ${RATE_LIMIT_ENABLED:-}
     ports:
       - "${API_HOST_PORT:-3001}:3001"
     healthcheck:

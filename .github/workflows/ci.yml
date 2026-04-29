@@ -183,6 +183,103 @@ jobs:
         if: always()
         run: $COMPOSE down -v
 
+  rate-limit-spec:
+    # Rate-limiting middleware regression gate (#116). Boots a dedicated
+    # compose stack with RATE_LIMIT_ENABLED=1 and runs only spec 116 —
+    # running the full suite with the flag on would exhaust the
+    # per-IP budgets (~40 registers within 60s across specs). Spec 116
+    # auto-skips in the smoke job because the flag is off there, so
+    # without this dedicated job the middleware wouldn't be exercised
+    # in CI at all.
+    name: rate-limit spec (RATE_LIMIT_ENABLED=1)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: install
+    env:
+      COMPOSE: docker compose -f infra/docker-compose.yml --env-file .env
+      RATE_LIMIT_ENABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: enable corepack + pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@"${PNPM_VERSION}" --activate
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: install
+        run: pnpm install --frozen-lockfile=false
+
+      - name: bootstrap .env
+        run: bash scripts/dev-bootstrap.sh
+
+      - name: compose up (with rate-limit enabled)
+        # The compose env block forwards RATE_LIMIT_ENABLED from the
+        # outer shell, so the step-level env propagates into the API
+        # container.
+        run: $COMPOSE up -d --build
+
+      - name: wait for api healthy
+        run: |
+          set -e
+          state=starting
+          for i in $(seq 1 60); do
+            state=$(docker inspect --format '{{.State.Health.Status}}' conduit-api-1 2>/dev/null || echo starting)
+            echo "[api] ${state} (attempt ${i}/60)"
+            if [ "$state" = "healthy" ]; then break; fi
+            sleep 2
+          done
+          if [ "$state" != "healthy" ]; then
+            echo "::error::api never became healthy"
+            $COMPOSE logs api | tail -200
+            exit 1
+          fi
+
+      - name: verify rate-limit is actually on
+        # Guard against a silent regression where the env var doesn't
+        # propagate to the container — without this check the spec
+        # would auto-skip and the CI would pass without exercising
+        # the middleware.
+        run: |
+          set -e
+          actual=$(docker exec conduit-api-1 printenv RATE_LIMIT_ENABLED || echo "")
+          if [ "$actual" != "1" ]; then
+            echo "::error::RATE_LIMIT_ENABLED is '${actual}' inside api container (expected '1')"
+            exit 1
+          fi
+          echo "[rate-limit] api container has RATE_LIMIT_ENABLED=1"
+
+      - name: install playwright browsers
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: run rate-limit spec
+        env:
+          PLAYWRIGHT_BASE_URL: http://localhost:3000
+          API_URL: http://localhost:3001
+        run: pnpm test:e2e:rate-limit
+
+      - name: upload playwright artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-rate-limit-${{ github.event.pull_request.number || github.run_id }}
+          path: |
+            tests/e2e/test-results/**/summary.json
+            tests/e2e/screenshots/**
+          if-no-files-found: warn
+
+      - name: compose logs on failure
+        if: failure()
+        run: $COMPOSE logs --no-color --tail=200
+
+      - name: compose down
+        if: always()
+        run: $COMPOSE down -v
+
   size-limit:
     # Bundle-size budget gate (#24). Runs after `install` so it reuses
     # the build artefacts on disk; fails the workflow if any entry in
