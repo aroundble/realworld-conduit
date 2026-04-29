@@ -45,7 +45,17 @@ const signToken = (user: Pick<User, "id" | "email" | "username">): string => {
 };
 
 export const verifyToken = (token: string): JwtPayload => {
-  const decoded = jwt.verify(token, config.jwtSecret, { algorithms: ["HS256"] });
+  let decoded: string | jwt.JwtPayload;
+  try {
+    decoded = jwt.verify(token, config.jwtSecret, {
+      algorithms: ["HS256"],
+      clockTolerance: config.jwtClockSkewSeconds,
+    });
+  } catch {
+    // Expired / malformed / signature-mismatch — surface as the spec's
+    // 401 so the global handler renders JSON + clears the cookie.
+    throw new AuthError("auth", "Unauthorized", 401);
+  }
   if (typeof decoded === "string") {
     throw new AuthError("auth", "Unauthorized", 401);
   }
