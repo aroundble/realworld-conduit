@@ -30,7 +30,18 @@ export class HomePage {
   }
 
   get sidebar(): Locator {
-    return this.page.locator(".sidebar");
+    // The Suspense tag-cloud skeleton (#114/#120) also renders with
+    // `class="sidebar skeleton-tag-cloud"` for layout parity, so a
+    // bare `.sidebar` selector briefly matches 2 elements while the
+    // RSC swap is mid-flight (strict-mode violation → #129). Exclude
+    // the skeleton *itself* via CSS `:not([data-testid=...])` —
+    // `filter({ hasNot })` only checks descendants, which doesn't
+    // match here because the skeleton is the element carrying the
+    // testid, not a parent of it. Callers then auto-wait on the
+    // resolved sidebar instead of racing the swap.
+    return this.page.locator(
+      '.sidebar:not([data-testid="tag-cloud-skeleton"])',
+    );
   }
 
   get paginator(): Locator {
