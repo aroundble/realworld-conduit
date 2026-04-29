@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { ArticleList } from "@/components/article/ArticleList";
+import { SearchBar } from "@/components/article/SearchBar";
 import { FeedTabs, type FeedMode } from "@/components/FeedTabs";
 import { TagCloud } from "@/components/TagCloud";
 import { TagCloudSkeleton } from "@/components/skeletons/TagCloudSkeleton";
@@ -31,10 +32,17 @@ const parsePage = (raw: string | undefined): number => {
   return Number.isFinite(n) && n >= 1 ? n : 1;
 };
 
-const buildPagePath = (mode: FeedMode, tag: string | undefined): string => {
-  if (mode === "you") return "/?feed=you";
-  if (mode === "tag" && tag) return `/?tag=${encodeURIComponent(tag)}`;
-  return "/";
+const buildPagePath = (
+  mode: FeedMode,
+  tag: string | undefined,
+  q: string | undefined,
+): string => {
+  const params = new URLSearchParams();
+  if (mode === "you") params.set("feed", "you");
+  if (mode === "tag" && tag) params.set("tag", tag);
+  if (q) params.set("q", q);
+  const qs = params.toString();
+  return qs ? `/?${qs}` : "/";
 };
 
 // When CONDUIT_TEST_SLOW_SUSPENSE=1 (set in the dev compose env), a
@@ -55,6 +63,13 @@ export default async function Home({
   const params = await searchParams;
   const tag = getString(params.tag);
   const feedParam = getString(params.feed);
+  const rawQ = getString(params.q);
+  // Clamp to the API's bounded range on the web side too — a 1-char
+  // `?q=r` from a hand-typed URL shouldn't even hit the API.
+  const q =
+    rawQ && rawQ.trim().length >= 2 && rawQ.length <= 100
+      ? rawQ.trim()
+      : undefined;
   const currentPage = parsePage(getString(params.page));
   const offset = (currentPage - 1) * PAGE_SIZE;
   const slowMs = testSlowMs(getString(params.slow));
@@ -72,17 +87,18 @@ export default async function Home({
     mode = "global";
   }
 
-  // Articles + tags fetch in parallel. Articles stay on the critical
-  // path because the feed tabs' render depends on `payload` shape;
-  // tags stream separately through <Suspense> so a slow tags query
-  // (#14 tag-count aggregation) doesn't block the article list
-  // first-paint. Any fetch failure bubbles up as a 500 — the Next
-  // default error boundary handles it.
+  // Articles stay on the critical path (feed-tabs render depends
+  // on the payload shape). Tags stream separately via <Suspense>
+  // from #114. Search (#117) adds `q` to the listArticles filter
+  // on every non-feed branch; `q` on feed is a separate API surface
+  // (out-of-scope) so dropping it silently for Your Feed is the
+  // least-surprising behaviour.
   const articlesPromise: Promise<ArticleListPayload> =
     mode === "you"
       ? feedArticles({ limit: PAGE_SIZE, offset })
       : listArticles({
           tag: mode === "tag" ? tag : undefined,
+          q,
           limit: PAGE_SIZE,
           offset,
         });
@@ -101,6 +117,7 @@ export default async function Home({
       <div className="container page">
         <div className="row">
           <div className="col-md-9">
+            <SearchBar initialQ={q ?? ""} />
             <FeedTabs
               activeMode={mode}
               activeTag={tag}
@@ -111,7 +128,7 @@ export default async function Home({
               articlesCount={payload.articlesCount}
               limit={PAGE_SIZE}
               currentPage={currentPage}
-              pagePath={buildPagePath(mode, tag)}
+              pagePath={buildPagePath(mode, tag, q)}
               authed={authed}
             />
           </div>

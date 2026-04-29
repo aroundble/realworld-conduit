@@ -54,6 +54,10 @@ export type ListArticleFilters = {
   // tab "Favorited Articles"). Per the RealWorld spec both filters
   // ride the same GET /api/articles endpoint.
   favorited?: string;
+  // Free-text search across title + description (#117). Bounded to
+  // 2-100 chars by the API; the homepage SearchBar enforces the
+  // minimum at input level so no 1-char request ever fires.
+  q?: string;
   limit?: number;
   offset?: number;
 };
@@ -84,6 +88,7 @@ export const listArticles = async (
     tag: filters.tag,
     author: filters.author,
     favorited: filters.favorited,
+    q: filters.q,
     limit: filters.limit,
     offset: filters.offset,
   });

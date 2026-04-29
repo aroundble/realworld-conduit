@@ -61,6 +61,9 @@ export type ListFilters = Partial<{
   author: string;
   tag: string;
   favorited: string;
+  // Free-text search across title + description (#117). API accepts
+  // 2-100 chars; callers passing a 1-char value will get 422.
+  q: string;
   limit: number;
   offset: number;
 }>;
@@ -144,6 +147,7 @@ export class ArticlesApi {
     if (filters.author) params.set("author", filters.author);
     if (filters.tag) params.set("tag", filters.tag);
     if (filters.favorited) params.set("favorited", filters.favorited);
+    if (filters.q) params.set("q", filters.q);
     if (filters.limit !== undefined) params.set("limit", String(filters.limit));
     if (filters.offset !== undefined) {
       params.set("offset", String(filters.offset));
