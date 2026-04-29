@@ -36,7 +36,7 @@ export class ArticleError extends Error {
   constructor(
     public readonly field: string,
     public readonly detail: string,
-    public readonly status: 404 | 422,
+    public readonly status: 403 | 404 | 422,
   ) {
     super(`${field}: ${detail}`);
     this.name = "ArticleError";
@@ -148,4 +148,77 @@ export const getArticleBySlug = async (
     throw new ArticleError("article", "not found", 404);
   }
   return toEnvelope(article, viewerId);
+};
+
+export type UpdateArticleInput = {
+  title?: string;
+  description?: string;
+  body?: string;
+};
+
+// Adapted from gothinkster/node-express-prisma-v1-official-app @ 6ac99ea5
+// (`src/app/routes/services/articles.service.ts#updateArticle`, attribution).
+// Two deviations from upstream:
+//   1. Author check runs here rather than in the handler, so callers in
+//      other contexts (future admin flows) can't forget it.
+//   2. When title changes the slug is regenerated with a fresh 4-char
+//      suffix. Upstream slugifies and trusts Prisma's unique constraint
+//      to surface collisions; we mirror that but retry once with a
+//      different suffix if Postgres returns P2002 on slug.
+// `updatedAt` is set explicitly because the schema's `updatedAt` column
+// has `@default(now())` but no `@updatedAt` directive (inherited from
+// upstream); Prisma won't bump it on plain updates. AC scenario 1
+// requires `updatedAt > createdAt`, which this write enforces.
+export const updateArticle = async (
+  viewerId: number,
+  slug: string,
+  input: UpdateArticleInput,
+): Promise<ArticleEnvelope> => {
+  const existing = await prisma.article.findUnique({ where: { slug } });
+  if (!existing) {
+    throw new ArticleError("article", "not found", 404);
+  }
+  if (existing.authorId !== viewerId) {
+    throw new ArticleError("article", "forbidden", 403);
+  }
+
+  const data: Prisma.ArticleUpdateInput = { updatedAt: new Date() };
+  if (input.title !== undefined) {
+    const base = slugify(input.title);
+    if (!base) {
+      throw new ArticleError("title", "can't be blank", 422);
+    }
+    data.title = input.title;
+    data.slug = `${base}-${suffix()}`;
+  }
+  if (input.description !== undefined) data.description = input.description;
+  if (input.body !== undefined) data.body = input.body;
+
+  const updated = await prisma.article.update({
+    where: { id: existing.id },
+    data,
+    include: {
+      tagList: true,
+      author: { include: { followedBy: { select: { id: true } } } },
+    },
+  });
+  return toEnvelope(updated, viewerId);
+};
+
+export const deleteArticle = async (
+  viewerId: number,
+  slug: string,
+): Promise<void> => {
+  const existing = await prisma.article.findUnique({ where: { slug } });
+  if (!existing) {
+    throw new ArticleError("article", "not found", 404);
+  }
+  if (existing.authorId !== viewerId) {
+    throw new ArticleError("article", "forbidden", 403);
+  }
+  // Comments cascade via onDelete:Cascade on Comment.article. The
+  // implicit M:N join rows for tagList (_ArticleToTag) and favoritedBy
+  // (_UserFavorites) are cleared by Prisma automatically when the owning
+  // row goes away — no manual cleanup needed.
+  await prisma.article.delete({ where: { id: existing.id } });
 };
