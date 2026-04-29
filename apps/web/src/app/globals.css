@@ -437,28 +437,9 @@ footer .attribution {
 
 /* ── Dark palette (#136) ─────────────────────────────────────
  * next-themes sets `data-theme="dark"` on <html> before first
- * paint (via its injected inline script), so these overrides
- * hit before React hydrates — no FOUC.
- *
- * Contrast discipline: every fg/bg pair here clears WCAG AA
- * 4.5:1 (ratio checked against the dark background #0e0e0f and
- * the card surface #1a1a1c). Canonical RealWorld greens still
- * brand the app, but we lift the banner color slightly so it
- * reads as distinct from the body bg rather than blending in.
- *
- * What's scoped:
- *   - Body bg / text.
- *   - Links (in prose, they still get underlined from the base
- *     rules above — only the color changes).
- *   - Navbar surface + border.
- *   - Home banner (lifts to a slightly lighter green for dark-on-dark).
- *   - Article preview card + empty-state card surfaces.
- *   - Footer.
- *   - Form controls (inputs + buttons inherit bg).
- *
- * Not scoped: tag pills (already readable white-on-green),
- * favorite button (uses brand green), auth error messages (red
- * on both palettes passes).
+ * paint via its injected inline script, so these overrides hit
+ * before React hydrates — no FOUC. Every fg/bg pair clears
+ * WCAG AA 4.5:1, verified by axe in spec 136.
  */
 :root {
   --conduit-bg: #ffffff;
@@ -480,12 +461,8 @@ footer .attribution {
   --conduit-input-bg: #1a1a1c;
   --conduit-navbar-bg: #151517;
   --conduit-footer-bg: #151517;
-  /* Banner brightens so the green reads as a distinct surface
-     against the near-black body (otherwise it blends). Still
-     carries enough contrast with white text overlaid. */
   --conduit-banner-bg: #3fa03f;
   --conduit-banner-shadow: #2c7a2c;
-  /* Links brighten — #4cc04c on dark bg clears AA. */
   --conduit-green: #4cc04c;
   --conduit-green-dark: #66d066;
 }
@@ -519,9 +496,6 @@ footer {
   border-color: var(--conduit-border);
 }
 
-/* Empty-state card — the title/body colors hardcoded above stay
- * legible on white but wash out on dark. Override to the theme
- * variables so both palettes hit AA. */
 [data-theme="dark"] .empty-state-title {
   color: var(--conduit-text);
 }
@@ -532,33 +506,57 @@ footer {
   color: var(--conduit-text-muted);
 }
 
-/* Article preview card needs a subtle border in dark mode so
- * cards don't merge into the body bg. Upstream RealWorld relies
- * on a light-mode bottom-border that vanishes on #0e0e0f. */
 [data-theme="dark"] .article-preview {
   border-bottom: 1px solid var(--conduit-border);
 }
 
-/* Tag pills in dark mode — the light-mode #595959 (7:1 on white)
- * becomes 2.9:1 on the near-black body bg, failing AA. Brighten
- * the outline pill text + border to #a5a9ac, which is the same
- * as --conduit-text-muted and clears AA (~7:1 on #0e0e0f). The
- * solid tag-pill (white-on-#595959) stays AA because the grey
- * is used as background, not foreground. */
 [data-theme="dark"] .tag-outline {
   border-color: var(--conduit-text-muted);
   color: var(--conduit-text-muted);
 }
 
-/* .author link in the article-meta strip sits adjacent to the
- * date/read-time spans. In dark mode, the brightened link green
- * (#4cc04c) is below the 3:1 AA ratio against the brightened body
- * text (#e8e9ea), so axe's link-in-text-block rule flags it. An
- * underline on the link makes it distinguishable without relying
- * on color, clearing the rule without swapping the palette. Light
- * mode keeps the canonical look (no underline) since the darker
- * green has enough contrast.
- */
 [data-theme="dark"] .article-meta .author {
   text-decoration: underline;
+}
+
+/* ── Editor draft-restore banner (#137) ──────────────────────
+ * Sits above the form when a saved draft is detected on mount.
+ * role=status is set on the element so screen readers announce
+ * the recovery softly (not as an error).
+ */
+.editor-draft-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+  background: #f3f9f3;
+  border: 1px solid var(--conduit-green);
+  border-radius: 0.3rem;
+  color: #373a3c;
+}
+
+[data-theme="dark"] .editor-draft-banner {
+  background: #153515;
+  color: var(--conduit-text);
+}
+
+.editor-draft-banner .btn-sm {
+  padding: 0.25rem 0.75rem;
+  font-size: 0.875rem;
+  border-radius: 0.25rem;
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+
+.editor-draft-banner .btn-outline-secondary {
+  background: transparent;
+  color: var(--conduit-text);
+  border-color: var(--conduit-border);
+}
+
+.editor-draft-banner .btn-outline-secondary:hover,
+.editor-draft-banner .btn-outline-secondary:focus {
+  color: var(--conduit-text);
+  border-color: var(--conduit-text-muted);
 }
