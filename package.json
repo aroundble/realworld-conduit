@@ -19,12 +19,17 @@
     "smoke": "bash scripts/smoke.sh",
     "test:conformance:smoke": "bash scripts/run-newman-smoke.sh",
     "test:conformance": "bash scripts/run-bruno-conformance.sh",
-    "test:e2e:smoke": "playwright test --config tests/e2e/playwright.config.ts"
+    "test:e2e:smoke": "playwright test --config tests/e2e/playwright.config.ts",
+    "size-limit": "size-limit",
+    "lhci": "lhci autorun --config=./lighthouserc.json"
   },
   "devDependencies": {
+    "@lhci/cli": "0.15.1",
     "@playwright/test": "1.59.1",
+    "@size-limit/file": "12.1.0",
     "@usebruno/cli": "3.3.0",
     "newman": "6.2.2",
+    "size-limit": "12.1.0",
     "typescript": "5.9.3"
   }
 }
