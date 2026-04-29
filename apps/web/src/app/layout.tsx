@@ -21,6 +21,15 @@ export const metadata: Metadata = {
       { url: "/icons/apple-touch-icon.png", sizes: "180x180" },
     ],
   },
+  // Global RSS feed discovery (#150). Feed readers scan <head>
+  // for <link rel="alternate"> with an Atom/RSS type and
+  // auto-subscribe. Per-author + per-tag feeds override on their
+  // own pages below.
+  alternates: {
+    types: {
+      "application/atom+xml": "/rss.xml",
+    },
+  },
 };
 
 // theme-color (#149) with separate light + dark entries so the

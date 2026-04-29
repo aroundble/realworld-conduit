@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { Suspense } from "react";
 import { ArticleList } from "@/components/article/ArticleList";
 import { SearchBar } from "@/components/article/SearchBar";
@@ -19,6 +20,30 @@ import { buildWebSiteJsonLd } from "@/lib/jsonld";
 // list), and renders the RealWorld banner + feed tabs + article list +
 // tag sidebar in one server render. No client components — the
 // interactive favorite button lands in follow-up issue #56.
+
+// Per-tag RSS feed discovery (#150). When the user is on
+// `/?tag=<tag>`, override the layout's global-feed alternate with
+// the tag-specific feed so a reader auto-subscribes to just that
+// tag. Falls through to the layout's default for other modes.
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}): Promise<Metadata> {
+  const sp = await searchParams;
+  const raw = sp.tag;
+  const tag = Array.isArray(raw) ? raw[0] : raw;
+  if (typeof tag === "string" && tag.length > 0) {
+    return {
+      alternates: {
+        types: {
+          "application/atom+xml": `/rss/tag/${encodeURIComponent(tag)}`,
+        },
+      },
+    };
+  }
+  return {};
+}
 
 const PAGE_SIZE = 20;
 

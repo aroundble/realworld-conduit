@@ -56,6 +56,15 @@ export async function generateMetadata({
       description,
       ...(profile.image ? { images: [profile.image] } : {}),
     },
+    // Per-author RSS feed discovery (#150). The global feed link
+    // lives on the root layout; this override adds the author-
+    // specific feed so a reader on /profile/<user> can one-click
+    // subscribe to just that user's articles.
+    alternates: {
+      types: {
+        "application/atom+xml": `/rss/author/${encodeURIComponent(profile.username)}`,
+      },
+    },
   };
 }
 
