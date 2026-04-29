@@ -759,9 +759,19 @@ check_full_regression_wake() {
   local marker_file="$HARNESS_STATE_DIR/last-full-regression-wake.epoch"
   local now_epoch last_epoch elapsed
   now_epoch=$(date -u +%s)
-  last_epoch=0
-  [[ -f "$marker_file" ]] && last_epoch=$(cat "$marker_file" 2>/dev/null | tr -d '[:space:]' || echo 0)
-  [[ -z "$last_epoch" ]] && last_epoch=0
+  # v0.2.47 race fix: first-ever cycle after `githarness init` finds no
+  # marker. Treat that as "just started; defer one full interval" by
+  # seeding the marker to now. Without this, first-cycle elapsed ≈ epoch
+  # and the wake fires in the same 60s window where init is still
+  # typing the planner kickoff — the two messages concat in the Claude
+  # Code input box and the Enter never submits either.
+  if [[ ! -f "$marker_file" ]]; then
+    mkdir -p "$(dirname "$marker_file")"
+    echo "$now_epoch" > "$marker_file"
+    return 0
+  fi
+  last_epoch=$(cat "$marker_file" 2>/dev/null | tr -d '[:space:]' || echo 0)
+  [[ -z "$last_epoch" ]] && last_epoch="$now_epoch"
   elapsed=$(( now_epoch - last_epoch ))
   (( elapsed < interval_secs )) && return 0
 
@@ -851,9 +861,16 @@ check_refinement_wake() {
   local marker_file="$HARNESS_STATE_DIR/last-refinement-wake.epoch"
   local now_epoch last_epoch elapsed
   now_epoch=$(date -u +%s)
-  last_epoch=0
-  [[ -f "$marker_file" ]] && last_epoch=$(cat "$marker_file" 2>/dev/null | tr -d '[:space:]' || echo 0)
-  [[ -z "$last_epoch" ]] && last_epoch=0
+  # v0.2.47 race fix: same seeding pattern as check_full_regression_wake.
+  # Without it, a just-started watchdog finds no marker and fires the
+  # refinement wake on cycle 1, colliding with the init kickoff.
+  if [[ ! -f "$marker_file" ]]; then
+    mkdir -p "$(dirname "$marker_file")"
+    echo "$now_epoch" > "$marker_file"
+    return 0
+  fi
+  last_epoch=$(cat "$marker_file" 2>/dev/null | tr -d '[:space:]' || echo 0)
+  [[ -z "$last_epoch" ]] && last_epoch="$now_epoch"
   elapsed=$(( now_epoch - last_epoch ))
   if (( elapsed < interval_secs )); then
     return 0
