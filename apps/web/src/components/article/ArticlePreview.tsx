@@ -1,16 +1,18 @@
 import Link from "next/link";
 import type { ArticleListItem } from "@/features/articles/queries";
+import { FavoriteButton } from "./FavoriteButton";
 
 // Pattern adapted from yukicountry/realworld-nextjs-rsc @ f455599f
 // (`src/modules/features/article/preview-card.tsx`, MIT). The favorite
-// button is rendered as a non-interactive badge here — the homepage
-// contract in #17 (post-rescope) is envelope-driven display only; the
-// interactive click→favorite toggle ships in the follow-up issue #56.
-// Styling class names match the RealWorld reference so the shared
-// globals.css works without overrides.
+// button is the interactive `FavoriteButton` client component from
+// #18/#56 — compact variant, optimistic update, click-to-login for
+// anon viewers. Styling class names match the RealWorld reference.
 
 type Props = {
   article: ArticleListItem;
+  // Authed status propagates from the RSC page (`/`, `/profile/*`, etc.)
+  // so the favorite button knows whether to POST or redirect to /login.
+  authed: boolean;
 };
 
 const formatDate = (iso: string): string =>
@@ -20,11 +22,7 @@ const formatDate = (iso: string): string =>
     day: "numeric",
   });
 
-export const ArticlePreview = ({ article }: Props) => {
-  const favoriteClass = article.favorited
-    ? "btn btn-sm btn-primary"
-    : "btn btn-sm btn-outline-primary";
-
+export const ArticlePreview = ({ article, authed }: Props) => {
   return (
     <div className="article-preview">
       <div className="article-meta">
@@ -52,21 +50,13 @@ export const ArticlePreview = ({ article }: Props) => {
           </Link>
           <span className="date">{formatDate(article.createdAt)}</span>
         </div>
-        {/*
-          Non-interactive badge: the outlined/filled state tracks
-          `article.favorited` but the element is a plain button with
-          `disabled` so assistive tech and click handlers don't treat
-          it as actionable. #56 ships the client-component version
-          that handles the POST round-trip + optimistic update.
-        */}
-        <button
-          className={`${favoriteClass} pull-xs-right`}
-          type="button"
-          disabled
-          aria-label={`favorites: ${article.favoritesCount}`}
-        >
-          <i className="ion-heart" /> {article.favoritesCount}
-        </button>
+        <FavoriteButton
+          slug={article.slug}
+          favorited={article.favorited}
+          favoritesCount={article.favoritesCount}
+          authed={authed}
+          variant="compact"
+        />
       </div>
       <Link href={`/article/${article.slug}`} className="preview-link">
         <h1>{article.title}</h1>

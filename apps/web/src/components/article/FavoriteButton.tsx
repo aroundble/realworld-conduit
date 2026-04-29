@@ -1,6 +1,6 @@
 "use client";
 
-import { useOptimistic, useTransition } from "react";
+import { useOptimistic, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   favoriteArticle,
@@ -11,7 +11,10 @@ type Props = {
   slug: string;
   favorited: boolean;
   favoritesCount: number;
-  disabled?: boolean;
+  // Anonymous viewers click-to-login instead of firing the POST. When
+  // `authed` is false the click routes to `/login?next=/article/<slug>`;
+  // no network request is issued (AC scenario 4 on #56).
+  authed: boolean;
   // variant=detail is the big banner/footer button; variant=compact
   // is the preview card's right-aligned pill. Both flip the same
   // state; they differ only in label + classes.
@@ -22,7 +25,7 @@ export const FavoriteButton = ({
   slug,
   favorited,
   favoritesCount,
-  disabled,
+  authed,
   variant = "detail",
 }: Props) => {
   const [optimistic, setOptimistic] = useOptimistic(
@@ -37,23 +40,40 @@ export const FavoriteButton = ({
     }),
   );
   const [isPending, startTransition] = useTransition();
+  const [errored, setErrored] = useState(false);
   const router = useRouter();
 
   const onClick = () => {
-    if (disabled) return;
+    if (!authed) {
+      // Anon path: send to login with a return target, skip the POST
+      // entirely so the test can assert no network request fired.
+      const next = `/article/${encodeURIComponent(slug)}`;
+      router.push(`/login?next=${encodeURIComponent(next)}`);
+      return;
+    }
     const next = !optimistic.favorited;
     startTransition(async () => {
       setOptimistic({ favorited: next });
-      if (next) {
-        await favoriteArticle(slug);
-      } else {
-        await unfavoriteArticle(slug);
+      setErrored(false);
+      try {
+        if (next) {
+          await favoriteArticle(slug);
+        } else {
+          await unfavoriteArticle(slug);
+        }
+        // Drive the refetch from the client so it runs strictly after
+        // the action's DB write has returned — avoids the optimistic /
+        // revalidate race in #76 where Follow's revalidation could
+        // arrive mid-Favorite-transition and flash stale state.
+        router.refresh();
+      } catch {
+        // Server 5xx / network error: React's useOptimistic will drop
+        // the pending optimistic value on throw and restore the last
+        // committed props — so the UI reverts automatically. Flag the
+        // error so the AC scenario-3 assertion can observe the revert +
+        // error indication.
+        setErrored(true);
       }
-      // Drive the refetch from the client so it runs strictly after
-      // the action's DB write has returned — avoids the optimistic /
-      // revalidate race in #76 where Follow's revalidation could
-      // arrive mid-Favorite-transition and flash stale state.
-      router.refresh();
     });
   };
 
@@ -67,11 +87,13 @@ export const FavoriteButton = ({
       type="button"
       aria-pressed={optimistic.favorited}
       aria-busy={isPending}
-      disabled={disabled || isPending}
+      data-errored={errored || undefined}
+      data-testid="favorite-button"
+      disabled={isPending}
       onClick={onClick}
       className={`btn btn-sm ${
         optimistic.favorited ? "btn-primary" : "btn-outline-primary"
-      } ${variant === "compact" ? "pull-xs-right" : ""}`}
+      } ${variant === "compact" ? "pull-xs-right" : ""}${errored ? " favorite-button--errored" : ""}`}
     >
       <span aria-hidden="true">♥</span> {label}
     </button>

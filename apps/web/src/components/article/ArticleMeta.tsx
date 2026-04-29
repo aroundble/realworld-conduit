@@ -67,6 +67,7 @@ export const ArticleMeta = ({ article, viewerUsername, authed }: Props) => {
             slug={article.slug}
             favorited={article.favorited}
             favoritesCount={article.favoritesCount}
+            authed={true}
           />
         </>
       ) : (
