@@ -280,10 +280,17 @@ export type ListArticlesFilters = {
   offset: number;
 };
 
+export type FeedFilters = {
+  limit: number;
+  offset: number;
+};
+
 export type ListArticlesResult = {
   articles: ArticleEnvelope[];
   articlesCount: number;
 };
+
+export type FeedResult = ListArticlesResult;
 
 // Adapted from gothinkster/node-express-prisma-v1-official-app @ 6ac99ea5
 // (`src/app/routes/services/articles.service.ts#listArticles`, attribution).
@@ -310,6 +317,36 @@ export const listArticles = async (
   if (filters.favoritedBy) {
     where.favoritedBy = { some: { username: filters.favoritedBy } };
   }
+
+  const [rows, articlesCount] = await Promise.all([
+    prisma.article.findMany({
+      where,
+      include: includeFor(viewerId),
+      orderBy: { createdAt: "desc" },
+      skip: filters.offset,
+      take: filters.limit,
+    }),
+    prisma.article.count({ where }),
+  ]);
+
+  return {
+    articles: rows.map((row) => toEnvelope(row, viewerId)),
+    articlesCount,
+  };
+};
+
+// Adapted from gothinkster/node-express-prisma-v1-official-app @ 6ac99ea5
+// (`src/app/routes/services/articles.service.ts#feed`, attribution). The
+// reference filters by `author.followedBy.some({id: viewerId})` so Prisma
+// pushes the follow-set join into the articles query directly — no
+// separate "which users does viewer follow?" round-trip. We mirror that.
+export const feedArticles = async (
+  viewerId: number,
+  filters: FeedFilters,
+): Promise<FeedResult> => {
+  const where: Prisma.ArticleWhereInput = {
+    author: { followedBy: { some: { id: viewerId } } },
+  };
 
   const [rows, articlesCount] = await Promise.all([
     prisma.article.findMany({
