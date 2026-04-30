@@ -21,6 +21,7 @@ import { registerHealthzRoute } from "./routes/healthz.js";
 import { registerInternalThrowRoute } from "./routes/internal-throw.js";
 import { registerProfileRoutes } from "./routes/profiles.js";
 import { registerTagsRoutes } from "./routes/tags.js";
+import { registerUploadRoutes } from "./routes/uploads.js";
 
 export type AppEnv = { Variables: RequestIdVars };
 
@@ -86,6 +87,7 @@ export const createApp = (): OpenAPIHono<AppEnv> => {
   registerArticleRoutes(app);
   registerCommentRoutes(app);
   registerTagsRoutes(app);
+  registerUploadRoutes(app);
   registerInternalThrowRoute(app);
 
   // Two doc surfaces (#123):

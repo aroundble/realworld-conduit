@@ -77,8 +77,22 @@ services:
       # compose sets API_CACHE_ENABLED=1 so CDN / browser / reverse
       # proxies honor the Cache-Control + ETag policy.
       API_CACHE_ENABLED: ${API_CACHE_ENABLED:-}
+      # Avatar upload (#169). Local-disk backend only for now; cloud
+      # adapters (S3 / R2) land in a follow-up Level-3 issue. The
+      # upload directory is volume-mounted so compose recreate /
+      # container restart preserves files across dev sessions.
+      UPLOAD_BACKEND: ${UPLOAD_BACKEND:-local}
+      UPLOAD_LOCAL_DIR: /app/uploads
+      MAX_AVATAR_BYTES: ${MAX_AVATAR_BYTES:-}
+      AVATAR_ALLOWED_MIME: ${AVATAR_ALLOWED_MIME:-}
     ports:
       - "${API_HOST_PORT:-3001}:3001"
+    volumes:
+      # Persist uploaded avatars across container restarts. The
+      # Dockerfile creates /app/uploads; the named volume mounts on
+      # top. Local dev + CI share the same volume name so Playwright
+      # can upload → re-fetch via the static handler deterministically.
+      - uploads:/app/uploads
     healthcheck:
       # 127.0.0.1 (not "localhost") so busybox wget doesn't try ::1 first
       # on hosts that prefer IPv6 in /etc/hosts — the Node server binds
@@ -133,3 +147,4 @@ services:
 
 volumes:
   postgres_data:
+  uploads:
