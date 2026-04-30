@@ -864,3 +864,34 @@ select:focus-visible,
   color: #b85c5c;
   font-size: 0.85rem;
 }
+
+/* ── Locale switcher (#167a) ────────────────────────────────
+ * Native <select> in the navbar. Styled minimal so it sits
+ * alongside the ThemeToggle without dominating. `.sr-only`
+ * hides the visible label for screen-reader-only announcement.
+ */
+.locale-switcher {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.5rem;
+}
+.locale-switcher-select {
+  background: transparent;
+  border: 1px solid var(--conduit-border, rgba(0, 0, 0, 0.15));
+  border-radius: 0.25rem;
+  color: inherit;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

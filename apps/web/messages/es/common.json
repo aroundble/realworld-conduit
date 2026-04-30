@@ -1,0 +1,44 @@
+{
+  "nav": {
+    "home": "Inicio",
+    "newArticle": "Nuevo artículo",
+    "settings": "Ajustes",
+    "signIn": "Iniciar sesión",
+    "signUp": "Registrarse",
+    "language": "Idioma",
+    "languageMenuLabel": "Elegir idioma"
+  },
+  "footer": {
+    "attribution": "Un proyecto de aprendizaje interactivo de",
+    "license": "Código y diseño con licencia MIT.",
+    "spec": "Consulta la",
+    "specLink": "especificación RealWorld",
+    "keyboardShortcuts": "Atajos de teclado (?)"
+  },
+  "skip": {
+    "toContent": "Saltar al contenido principal"
+  },
+  "shortcuts": {
+    "title": "Atajos de teclado",
+    "close": "Cerrar",
+    "openHelp": "Abrir este modal de ayuda",
+    "focusSearch": "Enfocar la barra de búsqueda (solo en inicio)",
+    "goHome": "Ir a inicio",
+    "goProfile": "Ir a tu perfil",
+    "newArticle": "Empezar un nuevo artículo (abre el editor)",
+    "closeDialogs": "Cerrar este modal / descartar diálogos",
+    "then": "luego"
+  },
+  "errorState": {
+    "title": "Algo salió mal",
+    "message": "Tuvimos un problema. No es tuyo — el error está de nuestro lado.",
+    "tryAgain": "Intentar de nuevo",
+    "backHome": "Volver al inicio",
+    "supportReference": "Referencia de soporte:"
+  },
+  "notFound": {
+    "title": "Página no encontrada",
+    "message": "La página que buscabas no existe o ha sido eliminada.",
+    "backHome": "Volver al inicio"
+  }
+}

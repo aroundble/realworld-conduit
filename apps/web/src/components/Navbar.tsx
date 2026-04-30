@@ -1,5 +1,7 @@
 import { cookies } from "next/headers";
-import Link from "next/link";
+import { getTranslations } from "next-intl/server";
+import { Link } from "@/i18n/navigation";
+import { LocaleSwitcher } from "./LocaleSwitcher";
 import { ThemeToggle } from "./ThemeToggle";
 
 // AUTH_COOKIE holds the username of the currently-signed-in user. Issue
@@ -28,6 +30,7 @@ const readCurrentUser = async (): Promise<CurrentUser | null> => {
 
 export const Navbar = async () => {
   const user = await readCurrentUser();
+  const t = await getTranslations("nav");
 
   return (
     <nav className="navbar navbar-light">
@@ -38,24 +41,27 @@ export const Navbar = async () => {
         <ul className="nav navbar-nav pull-xs-right">
           <li className="nav-item">
             <Link className="nav-link" href="/">
-              Home
+              {t("home")}
             </Link>
           </li>
           <li className="nav-item">
             <ThemeToggle />
+          </li>
+          <li className="nav-item">
+            <LocaleSwitcher />
           </li>
           {user ? (
             <>
               <li className="nav-item">
                 <Link className="nav-link" href="/editor">
                   <i className="ion-compose" />
-                  &nbsp;New Article
+                  &nbsp;{t("newArticle")}
                 </Link>
               </li>
               <li className="nav-item">
                 <Link className="nav-link" href="/settings">
                   <i className="ion-gear-a" />
-                  &nbsp;Settings
+                  &nbsp;{t("settings")}
                 </Link>
               </li>
               <li className="nav-item">
@@ -82,12 +88,12 @@ export const Navbar = async () => {
             <>
               <li className="nav-item">
                 <Link className="nav-link" href="/login">
-                  Sign in
+                  {t("signIn")}
                 </Link>
               </li>
               <li className="nav-item">
                 <Link className="nav-link" href="/register">
-                  Sign up
+                  {t("signUp")}
                 </Link>
               </li>
             </>

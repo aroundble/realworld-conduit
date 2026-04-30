@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 
 // Shared branded error state (#147). Mirrors EmptyState (#127) in
@@ -38,6 +39,7 @@ export const ErrorState = ({
   homeHref = "/",
   testId,
 }: Props) => {
+  const t = useTranslations("errorState");
   // One-shot effect — log the digest so a support request carrying
   // a screenshot can correlate with the server's pino line. No
   // network call; purely a console breadcrumb.
@@ -56,7 +58,7 @@ export const ErrorState = ({
       <p className="error-state-body">{description}</p>
       {error?.digest ? (
         <p className="error-state-digest" data-testid="error-digest">
-          Support reference: <code>{error.digest}</code>
+          {t("supportReference")} <code>{error.digest}</code>
         </p>
       ) : null}
       <div className="error-state-actions">
@@ -67,11 +69,11 @@ export const ErrorState = ({
             onClick={reset}
             data-testid="error-retry"
           >
-            Try again
+            {t("tryAgain")}
           </button>
         ) : null}
         <Link href={homeHref} className="error-state-home-link">
-          Back to homepage
+          {t("backHome")}
         </Link>
       </div>
     </div>

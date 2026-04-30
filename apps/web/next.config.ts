@@ -1,4 +1,11 @@
 import type { NextConfig } from "next";
+import createNextIntlPlugin from "next-intl/plugin";
+
+// next-intl plugin wire (#167a). Reads src/i18n/request.ts on
+// every server render to resolve locale + message bundle. The
+// explicit request path keeps tsconfig path aliases working
+// against the plugin's static analysis step.
+const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
 
 // Baseline security headers (#124). Emitted on every page + route
 // response. Rationale + tuning guidance in docs/security-headers.md.
@@ -61,4 +68,4 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+export default withNextIntl(nextConfig);

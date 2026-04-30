@@ -1,4 +1,6 @@
 import type { Metadata, Viewport } from "next";
+import { NextIntlClientProvider } from "next-intl";
+import { getLocale, getMessages } from "next-intl/server";
 import { Toaster } from "sonner";
 import { Footer } from "@/components/Footer";
 import { KeyboardShortcutHelp } from "@/components/KeyboardShortcutHelp";
@@ -45,17 +47,24 @@ export const viewport: Viewport = {
   ],
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  // i18n (#167a). next-intl resolves the active locale from the
+  // request (Accept-Language + conduit-locale cookie via the
+  // middleware). The client provider then hands the message bundle
+  // down so every `useTranslations()` in a client component works.
+  const locale = await getLocale();
+  const messages = await getMessages();
   return (
     // `suppressHydrationWarning` belongs on <html> when next-themes
     // is the one setting `data-theme` on first paint — the inline
     // script runs before React hydrates and edits the attribute,
     // which would otherwise log a warning. Scope is just this one
     // element; content inside still hydrates strictly.
-    <html lang="en" suppressHydrationWarning>
+    <html lang={locale} suppressHydrationWarning>
       <body>
+        <NextIntlClientProvider locale={locale} messages={messages}>
         <ThemeProvider>
           {/* Keyboard shortcuts (#160). The provider owns the global
               keydown listener + sequence state machine; the Help
@@ -94,6 +103,7 @@ export default function RootLayout({
           <KeyboardShortcutHelp />
           </KeyboardShortcutProvider>
         </ThemeProvider>
+        </NextIntlClientProvider>
       </body>
     </html>
   );

@@ -11,10 +11,13 @@
 // `sr-only` pattern. `display: none` would remove it from the
 // tab order entirely, which defeats the purpose.
 
-export const SkipLink = () => {
+import { getTranslations } from "next-intl/server";
+
+export const SkipLink = async () => {
+  const t = await getTranslations("skip");
   return (
     <a href="#main-content" className="skip-link" data-testid="skip-link">
-      Skip to main content
+      {t("toContent")}
     </a>
   );
 };

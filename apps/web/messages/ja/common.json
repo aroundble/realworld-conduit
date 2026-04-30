@@ -1,0 +1,44 @@
+{
+  "nav": {
+    "home": "ホーム",
+    "newArticle": "新規投稿",
+    "settings": "設定",
+    "signIn": "ログイン",
+    "signUp": "新規登録",
+    "language": "言語",
+    "languageMenuLabel": "言語を選択"
+  },
+  "footer": {
+    "attribution": "以下によるインタラクティブ学習プロジェクト",
+    "license": "コードとデザインは MIT ライセンスです。",
+    "spec": "詳細は",
+    "specLink": "RealWorld 仕様",
+    "keyboardShortcuts": "キーボードショートカット (?)"
+  },
+  "skip": {
+    "toContent": "メインコンテンツへスキップ"
+  },
+  "shortcuts": {
+    "title": "キーボードショートカット",
+    "close": "閉じる",
+    "openHelp": "ショートカットヘルプを開く",
+    "focusSearch": "検索バーにフォーカス (ホームのみ)",
+    "goHome": "ホームへ移動",
+    "goProfile": "プロフィールへ移動",
+    "newArticle": "新しい記事を書く (エディタを開く)",
+    "closeDialogs": "モーダルを閉じる / ダイアログを解除",
+    "then": "次に"
+  },
+  "errorState": {
+    "title": "問題が発生しました",
+    "message": "問題が発生しました。お客様の問題ではなく、こちら側の問題です。",
+    "tryAgain": "もう一度試す",
+    "backHome": "ホームに戻る",
+    "supportReference": "サポート参照番号:"
+  },
+  "notFound": {
+    "title": "ページが見つかりません",
+    "message": "お探しのページは存在しないか、削除されました。",
+    "backHome": "ホームに戻る"
+  }
+}

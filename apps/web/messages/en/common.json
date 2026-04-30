@@ -1,0 +1,44 @@
+{
+  "nav": {
+    "home": "Home",
+    "newArticle": "New Article",
+    "settings": "Settings",
+    "signIn": "Sign in",
+    "signUp": "Sign up",
+    "language": "Language",
+    "languageMenuLabel": "Choose language"
+  },
+  "footer": {
+    "attribution": "An interactive learning project from",
+    "license": "Code & design licensed under MIT.",
+    "spec": "See the",
+    "specLink": "RealWorld spec",
+    "keyboardShortcuts": "Keyboard shortcuts (?)"
+  },
+  "skip": {
+    "toContent": "Skip to main content"
+  },
+  "shortcuts": {
+    "title": "Keyboard shortcuts",
+    "close": "Close",
+    "openHelp": "Open this help modal",
+    "focusSearch": "Focus the search bar (homepage only)",
+    "goHome": "Go to the homepage",
+    "goProfile": "Go to your profile",
+    "newArticle": "Start a new article (opens the editor)",
+    "closeDialogs": "Close this modal / dismiss dialogs",
+    "then": "then"
+  },
+  "errorState": {
+    "title": "Something went wrong",
+    "message": "We hit a snag. It's not you — the issue is on our side.",
+    "tryAgain": "Try again",
+    "backHome": "Back to homepage",
+    "supportReference": "Support reference:"
+  },
+  "notFound": {
+    "title": "Page not found",
+    "message": "The page you were looking for does not exist or has been removed.",
+    "backHome": "Back to home"
+  }
+}
