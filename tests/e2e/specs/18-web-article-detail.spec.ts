@@ -306,8 +306,14 @@ test.describe("issue #18 — article detail page", () => {
     await expect(deleteButtons).toHaveCount(1);
 
     await deleteButtons.click();
+    // Soft-delete (#171): the row stays in the thread but flips
+    // to the "[deleted]" placeholder. The Delete button is gone
+    // (it was scoped to owned, non-deleted rows).
     await expect(
       page.getByTestId(`comment-${danCommentId}`),
+    ).toHaveAttribute("data-deleted", "true");
+    await expect(
+      page.getByRole("button", { name: "Delete comment" }),
     ).toHaveCount(0);
     // Jake's comment still there.
     await expect(page.getByTestId("comment-list")).toContainText(

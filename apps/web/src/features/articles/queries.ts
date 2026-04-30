@@ -129,6 +129,11 @@ export type Comment = {
   createdAt: string;
   updatedAt: string;
   body: string;
+  // Soft-delete marker (#171). Non-null when the comment was
+  // soft-deleted; `body` carries the placeholder string the API
+  // chose. Older server responses predating #171 may omit this
+  // field — treat absent as null.
+  deletedAt?: string | null;
   author: ArticleAuthor;
 };
 

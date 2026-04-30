@@ -864,3 +864,24 @@ select:focus-visible,
   color: #b85c5c;
   font-size: 0.85rem;
 }
+
+/* ── Comment soft-delete (#171) ─────────────────────────────
+ * A soft-deleted comment renders as a subtly-tinted card in the
+ * thread so subsequent replies stay anchored + the comment
+ * count is unchanged. Body text is italic on the tinted bg;
+ * colours respect WCAG AA — opacity was NOT used because it
+ * stacks against content and drags text contrast below the
+ * 4.5:1 floor.
+ */
+.comment-deleted {
+  background: #f7f7f7;
+}
+.comment-deleted-body {
+  font-style: italic;
+  /* #595959 on #f7f7f7 clears AA 4.5 (ratio 7.0). Same grey
+     used by footer attribution + tag-pill text. */
+  color: #595959;
+}
+.comment-deleted-author {
+  color: #595959;
+}

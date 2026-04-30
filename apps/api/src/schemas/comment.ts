@@ -7,6 +7,12 @@ export const CommentSchema = z
     createdAt: z.string(),
     updatedAt: z.string(),
     body: z.string(),
+    // Soft-delete marker (#171). ISO timestamp when the comment
+    // was soft-deleted, or null for live comments. When non-null,
+    // `body` carries "[deleted]" / "[removed by moderation]" and
+    // `author` is a placeholder (original body stays on the DB
+    // row for audit / appeal, never surfaced via API).
+    deletedAt: z.string().nullable(),
     author: ProfileSchema,
   })
   .openapi("Comment");

@@ -55,7 +55,27 @@ model Comment {
   articleId Int
   author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
   authorId  Int
+  // Soft-delete (#171). Non-null `deletedAt` marks this row as
+  // soft-deleted; the original `body` stays on disk for audit /
+  // appeal but the API replaces it with "[deleted]" in every
+  // list / detail response. `deletedBy` is the user id who
+  // performed the delete (self-delete → authorId, moderation →
+  // admin id); `moderationReason` is set only on the moderation
+  // path. Plain Int column (no FK relation) — the id is for
+  // audit, not relational joins, and avoiding a second User
+  // relation keeps the schema shape simple.
+  deletedAt         DateTime?
+  deletedBy         Int?
+  moderationReason  String?
+
+  @@index([deletedAt])
 }
+
+// User.role (#171). Nullable enum-ish string. `null` / absent =
+// regular user, `"admin"` = moderator. Stored as String (not a
+// Prisma enum) so future roles ("editor", "support") don't
+// require a migration — the app-level validator enumerates the
+// accepted values.
 
 model Tag {
   id       Int       @id @default(autoincrement())
@@ -70,6 +90,10 @@ model User {
   password   String
   image      String?   @default("https://api.realworld.io/images/smiley-cyrus.jpeg")
   bio        String?
+  // Moderator flag (#171). Null / absent → regular user;
+  // "admin" → may soft-delete any comment with a moderation
+  // reason. See Comment.deletedBy / moderationReason.
+  role       String?
   articles   Article[] @relation("UserArticles")
   favorites  Article[] @relation("UserFavorites")
   followedBy User[]    @relation("UserFollows")

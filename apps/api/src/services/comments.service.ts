@@ -7,12 +7,30 @@ import { prisma } from "../prisma/client.js";
 // envelope with viewer-relative `following`. We reuse the narrow
 // `followedBy` include pattern used by profile / article services so
 // the follow check is a tiny join rather than a row scan.
+//
+// Soft-delete (#171): when a row carries a non-null `deletedAt`, the
+// envelope replaces `body` with "[deleted]" (user-initiated) or
+// "[removed by moderation]" (admin-initiated via moderationReason),
+// zeroes out the author profile to a placeholder, and surfaces
+// `deletedAt`. The original body stays on the row for audit; no
+// user-agent code path reveals it.
+
+export const DELETED_PLACEHOLDER = "[deleted]";
+export const MODERATED_PLACEHOLDER = "[removed by moderation]";
+
+const DELETED_AUTHOR = {
+  username: "[deleted]",
+  bio: null,
+  image: null,
+  following: false,
+} as const;
 
 export type CommentEnvelope = {
   id: number;
   createdAt: string;
   updatedAt: string;
   body: string;
+  deletedAt: string | null;
   author: {
     username: string;
     bio: string | null;
@@ -43,21 +61,42 @@ type CommentWithIncludes = Prisma.CommentGetPayload<{
 const toEnvelope = (
   comment: CommentWithIncludes,
   viewerId: number | null,
-): CommentEnvelope => ({
-  id: comment.id,
-  createdAt: comment.createdAt.toISOString(),
-  updatedAt: comment.updatedAt.toISOString(),
-  body: comment.body,
-  author: {
-    username: comment.author.username,
-    bio: comment.author.bio,
-    image: comment.author.image,
-    following:
-      viewerId !== null &&
-      comment.author.id !== viewerId &&
-      comment.author.followedBy.some((f) => f.id === viewerId),
-  },
-});
+): CommentEnvelope => {
+  if (comment.deletedAt !== null) {
+    // Placeholder body depends on whether a moderationReason was
+    // attached; the reason itself is NOT surfaced (callers don't
+    // need to know why; the admin UI from a future issue will
+    // query it directly).
+    const placeholderBody =
+      comment.moderationReason !== null && comment.moderationReason !== ""
+        ? MODERATED_PLACEHOLDER
+        : DELETED_PLACEHOLDER;
+    return {
+      id: comment.id,
+      createdAt: comment.createdAt.toISOString(),
+      updatedAt: comment.updatedAt.toISOString(),
+      body: placeholderBody,
+      deletedAt: comment.deletedAt.toISOString(),
+      author: { ...DELETED_AUTHOR },
+    };
+  }
+  return {
+    id: comment.id,
+    createdAt: comment.createdAt.toISOString(),
+    updatedAt: comment.updatedAt.toISOString(),
+    body: comment.body,
+    deletedAt: null,
+    author: {
+      username: comment.author.username,
+      bio: comment.author.bio,
+      image: comment.author.image,
+      following:
+        viewerId !== null &&
+        comment.author.id !== viewerId &&
+        comment.author.followedBy.some((f) => f.id === viewerId),
+    },
+  };
+};
 
 // Narrow helper — every entry point needs to resolve "does this slug
 // exist" before touching comments. Returns the article row (id only)
@@ -103,25 +142,64 @@ export const addComment = async (
   return toEnvelope(comment, viewerId);
 };
 
+export type DeleteCommentOptions = {
+  // When present, treats the call as admin moderation: the
+  // caller must have user.role === "admin"; the row records
+  // deletedBy + moderationReason; placeholder renders as
+  // "[removed by moderation]". Absent → regular self-delete by
+  // the comment owner.
+  moderation?: { reason: string };
+};
+
 export const deleteComment = async (
-  viewerId: number,
+  viewer: { id: number; role: string | null },
   slug: string,
   commentId: number,
+  opts: DeleteCommentOptions = {},
 ): Promise<void> => {
   const articleId = await requireArticleId(slug);
   const comment = await prisma.comment.findUnique({
     where: { id: commentId },
-    select: { id: true, articleId: true, authorId: true },
+    select: { id: true, articleId: true, authorId: true, deletedAt: true },
   });
-  // 404 if comment is missing OR belongs to a different article (so a
-  // client can't discover comment ids by probing other slugs).
-  if (!comment || comment.articleId !== articleId) {
+  // 404 hides:
+  //   - missing comment
+  //   - comment that lives on a different article (cross-slug probe)
+  //   - already soft-deleted (can't re-delete, but don't leak existence
+  //     to non-owners / non-moderators via a distinct status)
+  if (
+    !comment ||
+    comment.articleId !== articleId ||
+    comment.deletedAt !== null
+  ) {
     throw new CommentError("comment", "not found", 404);
   }
-  if (comment.authorId !== viewerId) {
+  if (opts.moderation) {
+    // Moderation path: viewer must be an admin.
+    if (viewer.role !== "admin") {
+      throw new CommentError("comment", "forbidden", 403);
+    }
+    await prisma.comment.update({
+      where: { id: commentId },
+      data: {
+        deletedAt: new Date(),
+        deletedBy: viewer.id,
+        moderationReason: opts.moderation.reason,
+      },
+    });
+    return;
+  }
+  // Self-delete path: viewer must be the author.
+  if (comment.authorId !== viewer.id) {
     throw new CommentError("comment", "forbidden", 403);
   }
-  await prisma.comment.delete({ where: { id: commentId } });
+  await prisma.comment.update({
+    where: { id: commentId },
+    data: {
+      deletedAt: new Date(),
+      deletedBy: viewer.id,
+    },
+  });
 };
 
 // Owner-only body update. Mirrors deleteComment's 404/403 ladder
@@ -132,6 +210,10 @@ export const deleteComment = async (
 //
 // Prisma Comment lacks `@updatedAt` so updatedAt is set
 // explicitly; same pattern as articles.service.updateArticle.
+//
+// Soft-deleted comments 404 here — a terminal state from the
+// user's perspective; allowing edit would let them rewrite
+// history (AC scenario 3).
 export const updateComment = async (
   viewerId: number,
   slug: string,
@@ -141,9 +223,13 @@ export const updateComment = async (
   const articleId = await requireArticleId(slug);
   const comment = await prisma.comment.findUnique({
     where: { id: commentId },
-    select: { id: true, articleId: true, authorId: true },
+    select: { id: true, articleId: true, authorId: true, deletedAt: true },
   });
-  if (!comment || comment.articleId !== articleId) {
+  if (
+    !comment ||
+    comment.articleId !== articleId ||
+    comment.deletedAt !== null
+  ) {
     throw new CommentError("comment", "not found", 404);
   }
   if (comment.authorId !== viewerId) {

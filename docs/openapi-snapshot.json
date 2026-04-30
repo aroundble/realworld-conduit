@@ -514,6 +514,12 @@
           "body": {
             "type": "string"
           },
+          "deletedAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "author": {
             "$ref": "#/components/schemas/Profile"
           }
@@ -523,6 +529,7 @@
           "createdAt",
           "updatedAt",
           "body",
+          "deletedAt",
           "author"
         ]
       },
@@ -1533,7 +1540,7 @@
         "tags": [
           "comments"
         ],
-        "summary": "Delete own comment on an article",
+        "summary": "Soft-delete own comment (or ?moderation=true for admin role)",
         "parameters": [
           {
             "schema": {
@@ -1552,6 +1559,17 @@
             "required": true,
             "name": "id",
             "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true"
+              ]
+            },
+            "required": false,
+            "name": "moderation",
+            "in": "query"
           }
         ],
         "responses": {
@@ -1569,7 +1587,7 @@
             }
           },
           "403": {
-            "description": "Forbidden — viewer is not the comment author",
+            "description": "Forbidden — viewer is not the comment author or (with moderation=true) not an admin",
             "content": {
               "application/json": {
                 "schema": {
@@ -1579,7 +1597,17 @@
             }
           },
           "404": {
-            "description": "Article or comment not found",
+            "description": "Article or comment not found (or already deleted)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Moderation call missing a reason",
             "content": {
               "application/json": {
                 "schema": {
