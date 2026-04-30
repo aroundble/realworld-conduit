@@ -66,6 +66,11 @@ COPY --from=deploy --chown=hono:nodejs /prod/api/node_modules ./node_modules
 COPY --from=deploy --chown=hono:nodejs /prod/api/prisma ./prisma
 COPY --from=deploy --chown=hono:nodejs /prod/api/prisma.config.ts ./prisma.config.ts
 COPY --chmod=0755 apps/api/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+# Avatar upload directory (#169). Pre-created + chowned so the
+# volume mount lands on a writable target; without this step the
+# first POST fails with EACCES because the mount defaults to root-
+# owned and the container runs as the `hono` user.
+RUN mkdir -p /app/uploads && chown hono:nodejs /app/uploads
 
 USER hono
 

@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { useForm } from "@conform-to/react";
 import { parseWithZod } from "@conform-to/zod/v4";
+import { AvatarUpload } from "./AvatarUpload";
 import { logoutAction, updateUserAction } from "./actions";
 import { settingsSchema } from "./schema";
 
@@ -92,6 +93,14 @@ export const SettingsForm = ({ currentUser }: Props) => {
               className="form-control"
               placeholder="URL of profile picture"
               aria-invalid={fieldErrors.image.length > 0 || undefined}
+            />
+            {/* Avatar upload (#169). Sits under the text URL input
+                so paste-a-URL still works for users with externally-
+                hosted images; local upload writes back into the
+                same field via a native-setter + input event. */}
+            <AvatarUpload
+              imageInputId={fields.image.id}
+              initialUrl={currentUser.image}
             />
           </fieldset>
           <fieldset className="form-group">

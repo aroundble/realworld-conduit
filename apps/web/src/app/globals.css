@@ -836,3 +836,31 @@ select:focus-visible,
 [data-theme="dark"] .comment-edited-badge {
   color: #9ca3af;
 }
+
+/* ── Avatar upload (#169) ───────────────────────────────────
+ * Sits in SettingsForm under the image-URL input. Preview +
+ * status + error messages share a single row.
+ */
+.avatar-upload {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+  flex-wrap: wrap;
+}
+.avatar-upload-input {
+  font-size: 0.85rem;
+}
+.avatar-upload-preview {
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid var(--conduit-border, rgba(0, 0, 0, 0.15));
+}
+.avatar-upload-status {
+  color: var(--conduit-text-muted, #55595c);
+  font-size: 0.85rem;
+}
+.avatar-upload-error {
+  color: #b85c5c;
+  font-size: 0.85rem;
+}
