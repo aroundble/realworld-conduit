@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useShortcutContext } from "./KeyboardShortcutProvider";
 
 // Footer trigger for the keyboard-shortcuts help modal (#160).
@@ -10,6 +11,7 @@ import { useShortcutContext } from "./KeyboardShortcutProvider";
 
 export const KeyboardShortcutFooterLink = () => {
   const { openHelp } = useShortcutContext();
+  const t = useTranslations("footer");
   return (
     <button
       type="button"
@@ -17,7 +19,7 @@ export const KeyboardShortcutFooterLink = () => {
       onClick={openHelp}
       data-testid="shortcut-help-trigger"
     >
-      Keyboard shortcuts (?)
+      {t("keyboardShortcuts")}
     </button>
   );
 };

@@ -48,8 +48,12 @@ jobs:
       - name: typecheck
         run: pnpm run typecheck
 
+      - name: i18n check (locale bundles in sync)
+        run: pnpm run i18n:check
+
       - name: build web
         run: pnpm --filter @conduit/web build
+
 
       - name: build api
         run: pnpm --filter @conduit/api build

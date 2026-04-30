@@ -1,0 +1,44 @@
+{
+  "nav": {
+    "home": "Startseite",
+    "newArticle": "Neuer Artikel",
+    "settings": "Einstellungen",
+    "signIn": "Anmelden",
+    "signUp": "Registrieren",
+    "language": "Sprache",
+    "languageMenuLabel": "Sprache wählen"
+  },
+  "footer": {
+    "attribution": "Ein interaktives Lernprojekt von",
+    "license": "Code & Design unter MIT-Lizenz.",
+    "spec": "Siehe die",
+    "specLink": "RealWorld-Spezifikation",
+    "keyboardShortcuts": "Tastenkürzel (?)"
+  },
+  "skip": {
+    "toContent": "Zum Hauptinhalt springen"
+  },
+  "shortcuts": {
+    "title": "Tastenkürzel",
+    "close": "Schließen",
+    "openHelp": "Hilfe-Modal öffnen",
+    "focusSearch": "Suchleiste fokussieren (nur Startseite)",
+    "goHome": "Zur Startseite",
+    "goProfile": "Zu deinem Profil",
+    "newArticle": "Neuen Artikel beginnen (öffnet den Editor)",
+    "closeDialogs": "Dieses Modal schließen / Dialoge verwerfen",
+    "then": "dann"
+  },
+  "errorState": {
+    "title": "Etwas ist schiefgelaufen",
+    "message": "Wir hatten ein Problem. Es liegt nicht an dir — der Fehler ist auf unserer Seite.",
+    "tryAgain": "Erneut versuchen",
+    "backHome": "Zurück zur Startseite",
+    "supportReference": "Support-Referenz:"
+  },
+  "notFound": {
+    "title": "Seite nicht gefunden",
+    "message": "Die gesuchte Seite existiert nicht oder wurde entfernt.",
+    "backHome": "Zurück zur Startseite"
+  }
+}

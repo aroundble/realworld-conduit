@@ -1,26 +1,29 @@
+import { getTranslations } from "next-intl/server";
 import Link from "next/link";
 import { KeyboardShortcutFooterLink } from "./KeyboardShortcutFooterLink";
 
-export const Footer = () => (
-  <footer>
-    <div className="container">
-      <Link href="/" className="logo-font">
-        conduit
-      </Link>
-      <span className="attribution">
-        An interactive learning project from{" "}
-        <a href="https://thinkster.io">Thinkster</a>. Code &amp; design
-        licensed under MIT.
-      </span>
-      <span className="attribution">
-        {" "}
-        See the{" "}
-        <a href="https://realworld-docs.netlify.app/">RealWorld spec</a>.
-      </span>
-      <span className="attribution">
-        {" "}
-        <KeyboardShortcutFooterLink />
-      </span>
-    </div>
-  </footer>
-);
+export const Footer = async () => {
+  const t = await getTranslations("footer");
+  return (
+    <footer>
+      <div className="container">
+        <Link href="/" className="logo-font">
+          conduit
+        </Link>
+        <span className="attribution">
+          {t("attribution")}{" "}
+          <a href="https://thinkster.io">Thinkster</a>. {t("license")}
+        </span>
+        <span className="attribution">
+          {" "}
+          {t("spec")}{" "}
+          <a href="https://realworld-docs.netlify.app/">{t("specLink")}</a>.
+        </span>
+        <span className="attribution">
+          {" "}
+          <KeyboardShortcutFooterLink />
+        </span>
+      </div>
+    </footer>
+  );
+};

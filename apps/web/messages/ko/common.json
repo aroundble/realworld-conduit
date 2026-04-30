@@ -1,0 +1,44 @@
+{
+  "nav": {
+    "home": "홈",
+    "newArticle": "새 글",
+    "settings": "설정",
+    "signIn": "로그인",
+    "signUp": "회원가입",
+    "language": "언어",
+    "languageMenuLabel": "언어 선택"
+  },
+  "footer": {
+    "attribution": "다음과 함께하는 대화형 학습 프로젝트",
+    "license": "코드와 디자인은 MIT 라이선스입니다.",
+    "spec": "자세한 내용은",
+    "specLink": "RealWorld 스펙",
+    "keyboardShortcuts": "키보드 단축키 (?)"
+  },
+  "skip": {
+    "toContent": "본문으로 건너뛰기"
+  },
+  "shortcuts": {
+    "title": "키보드 단축키",
+    "close": "닫기",
+    "openHelp": "단축키 도움말 열기",
+    "focusSearch": "검색창으로 이동 (홈에서만)",
+    "goHome": "홈으로 이동",
+    "goProfile": "내 프로필로 이동",
+    "newArticle": "새 글 쓰기 (에디터 열기)",
+    "closeDialogs": "모달 닫기 / 대화 상자 해제",
+    "then": "다음"
+  },
+  "errorState": {
+    "title": "문제가 발생했습니다",
+    "message": "일시적인 오류가 발생했습니다. 여러분의 문제가 아니라 저희 쪽 문제입니다.",
+    "tryAgain": "다시 시도",
+    "backHome": "홈으로 돌아가기",
+    "supportReference": "지원 참조 번호:"
+  },
+  "notFound": {
+    "title": "페이지를 찾을 수 없습니다",
+    "message": "요청하신 페이지가 존재하지 않거나 삭제되었습니다.",
+    "backHome": "홈으로 돌아가기"
+  }
+}

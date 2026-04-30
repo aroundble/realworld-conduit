@@ -26,6 +26,7 @@
     "backup:dump": "bash scripts/backup-dump.sh",
     "backup:restore": "bash scripts/backup-restore.sh",
     "openapi:emit": "bash scripts/emit-openapi.sh",
+    "i18n:check": "node scripts/i18n-check.mjs",
     "size-limit": "size-limit",
     "lhci": "lhci autorun --config=./lighthouserc.json"
   },

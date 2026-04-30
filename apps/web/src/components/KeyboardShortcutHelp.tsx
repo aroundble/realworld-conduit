@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef } from "react";
+import { useTranslations } from "next-intl";
 import { useShortcutContext } from "./KeyboardShortcutProvider";
 
 // Help modal (#160). Lists every keyboard shortcut the app
@@ -18,17 +19,19 @@ import { useShortcutContext } from "./KeyboardShortcutProvider";
 //     Tab doesn't lose the Esc path).
 //   - Clicking outside the dialog (backdrop) also closes.
 
-const SHORTCUTS = [
-  { keys: ["?"], description: "Open this help modal" },
-  { keys: ["/"], description: "Focus the search bar (homepage only)" },
-  { keys: ["g", "h"], description: "Go to the homepage" },
-  { keys: ["g", "p"], description: "Go to your profile" },
-  { keys: ["n"], description: "Start a new article (opens the editor)" },
-  { keys: ["Esc"], description: "Close this modal / dismiss dialogs" },
-];
+// Key→description map lookups against the shortcuts.* namespace.
+const SHORTCUT_ROWS = [
+  { keys: ["?"], key: "openHelp" },
+  { keys: ["/"], key: "focusSearch" },
+  { keys: ["g", "h"], key: "goHome" },
+  { keys: ["g", "p"], key: "goProfile" },
+  { keys: ["n"], key: "newArticle" },
+  { keys: ["Esc"], key: "closeDialogs" },
+] as const;
 
 export const KeyboardShortcutHelp = () => {
   const { helpOpen, closeHelp } = useShortcutContext();
+  const t = useTranslations("shortcuts");
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
 
@@ -95,21 +98,23 @@ export const KeyboardShortcutHelp = () => {
         data-testid="shortcut-help"
       >
         <h2 id="shortcut-help-title" className="shortcut-help-title">
-          Keyboard shortcuts
+          {t("title")}
         </h2>
         <table className="shortcut-help-table">
           <tbody>
-            {SHORTCUTS.map(({ keys, description }) => (
+            {SHORTCUT_ROWS.map(({ keys, key }) => (
               <tr key={keys.join("+")}>
                 <td className="shortcut-help-keys">
                   {keys.map((k, idx) => (
                     <span key={idx}>
                       <kbd>{k}</kbd>
-                      {idx < keys.length - 1 ? <span> then </span> : null}
+                      {idx < keys.length - 1 ? (
+                        <span> {t("then")} </span>
+                      ) : null}
                     </span>
                   ))}
                 </td>
-                <td className="shortcut-help-desc">{description}</td>
+                <td className="shortcut-help-desc">{t(key)}</td>
               </tr>
             ))}
           </tbody>
@@ -122,7 +127,7 @@ export const KeyboardShortcutHelp = () => {
             onClick={closeHelp}
             data-testid="shortcut-help-close"
           >
-            Close
+            {t("close")}
           </button>
         </div>
       </div>
