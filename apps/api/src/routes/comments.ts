@@ -8,6 +8,7 @@ import {
   listComments,
   updateComment,
 } from "../services/comments.service.js";
+import { prisma } from "../prisma/client.js";
 import { optionalAuth, requireAuth, type UserVars } from "../middleware/jwt-cookie.js";
 import { rateLimit } from "../middleware/rate-limit.js";
 import { ErrorResponseSchema } from "../schemas/user.js";
@@ -96,8 +97,18 @@ const deleteCommentRoute = createRoute({
   method: "delete",
   path: "/api/articles/{slug}/comments/{id}",
   tags: ["comments"],
-  summary: "Delete own comment on an article",
-  request: { params: SlugAndIdParams },
+  summary:
+    "Soft-delete own comment (or ?moderation=true for admin role)",
+  request: {
+    params: SlugAndIdParams,
+    query: z
+      .object({
+        moderation: z.enum(["true"]).optional().openapi({
+          param: { name: "moderation", in: "query", required: false },
+        }),
+      })
+      .openapi("CommentDeleteQuery"),
+  },
   responses: {
     204: { description: "Deleted" },
     401: {
@@ -105,11 +116,16 @@ const deleteCommentRoute = createRoute({
       content: { "application/json": { schema: ErrorResponseSchema } },
     },
     403: {
-      description: "Forbidden — viewer is not the comment author",
+      description:
+        "Forbidden — viewer is not the comment author or (with moderation=true) not an admin",
       content: { "application/json": { schema: ErrorResponseSchema } },
     },
     404: {
-      description: "Article or comment not found",
+      description: "Article or comment not found (or already deleted)",
+      content: { "application/json": { schema: ErrorResponseSchema } },
+    },
+    422: {
+      description: "Moderation call missing a reason",
       content: { "application/json": { schema: ErrorResponseSchema } },
     },
   },
@@ -222,8 +238,35 @@ export const registerCommentRoutes = (app: OpenAPIHono<AppEnv>): void => {
     const viewer = c.get("user");
     if (!viewer) return c.json(jsonError("token", "is missing"), 401);
     const { slug, id } = c.req.valid("param");
+
+    // Moderation path (#171): when `?moderation=true` is set + a
+    // JSON body `{ reason: "..." }` rides along, treat the call
+    // as admin moderation. Role is read from the DB at request
+    // time, not baked into the JWT — that way an admin demoted
+    // an hour ago cannot still moderate with a live token.
+    const moderationFlag = c.req.query("moderation") === "true";
+    let moderation: { reason: string } | undefined;
+    if (moderationFlag) {
+      const body = await c.req.json<{ reason?: unknown }>().catch(() => null);
+      const reason =
+        body && typeof body.reason === "string" ? body.reason.trim() : "";
+      if (reason.length === 0) {
+        return c.json(
+          jsonError("moderationReason", "is required"),
+          422,
+        );
+      }
+      moderation = { reason };
+    }
+
+    const record = await prisma.user.findUnique({
+      where: { id: viewer.id },
+      select: { role: true },
+    });
+    const role = record?.role ?? null;
+
     try {
-      await deleteComment(viewer.id, slug, id);
+      await deleteComment({ id: viewer.id, role }, slug, id, { moderation });
       return c.body(null, 204);
     } catch (err) {
       if (err instanceof CommentError) {

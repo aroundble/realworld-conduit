@@ -65,7 +65,7 @@ test.describe("issue #13 — API comments CRUD", () => {
     expect(comments.map((c) => c.id)).toContain(comment.id);
   });
 
-  test("Scenario 3: delete own comment → 204, subsequent list omits it", async () => {
+  test("Scenario 3: delete own comment → 204, row soft-deleted (body='[deleted]', deletedAt set)", async () => {
     const id = uniq();
     const jake = `jake-${id}`;
     const jakeApi = await CommentsApi.newContext();
@@ -75,8 +75,16 @@ test.describe("issue #13 — API comments CRUD", () => {
 
     await jakeApi.deleteComment(slug, commentId);
 
+    // Soft-delete (#171): the row stays in the list with the
+    // placeholder envelope. AC scenario 2: "subsequent GET still
+    // returns the comment record BUT with body: '[deleted]',
+    // author zeroed, deletedAt: <iso>".
     const comments = await jakeApi.listComments(slug);
-    expect(comments.map((c) => c.id)).not.toContain(commentId);
+    const row = comments.find((c) => c.id === commentId);
+    expect(row).toBeTruthy();
+    expect(row?.body).toBe("[deleted]");
+    expect(row?.author.username).toBe("[deleted]");
+    expect(row?.deletedAt).toBeTruthy();
   });
 
   test("Scenario 4: delete someone else's comment → 403", async () => {

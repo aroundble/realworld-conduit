@@ -22,8 +22,41 @@ const wasEdited = (createdAt: string, updatedAt: string): boolean => {
 };
 
 export const CommentItem = ({ slug, comment, viewerUsername }: Props) => {
-  const isOwn = viewerUsername === comment.author.username;
-  const edited = wasEdited(comment.createdAt, comment.updatedAt);
+  const isDeleted = Boolean(comment.deletedAt);
+  const isOwn = !isDeleted && viewerUsername === comment.author.username;
+  const edited =
+    !isDeleted && wasEdited(comment.createdAt, comment.updatedAt);
+
+  // Soft-deleted placeholder (#171). Render a grayed-out card so
+  // the thread preserves its shape (later replies stay anchored,
+  // comment-count in the banner is unchanged). No Edit / Delete
+  // controls — a soft-deleted comment is terminal; the author
+  // cannot rewrite history.
+  if (isDeleted) {
+    return (
+      <div
+        className="card comment-deleted"
+        data-testid={`comment-${comment.id}`}
+        data-deleted="true"
+      >
+        <div className="card-block">
+          <p
+            className="card-text comment-deleted-body"
+            data-testid={`comment-body-${comment.id}`}
+          >
+            {comment.body}
+          </p>
+        </div>
+        <div className="card-footer">
+          <span className="comment-author comment-deleted-author">
+            {comment.author.username}
+          </span>
+          <RelativeTime iso={comment.createdAt} className="date-posted" />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="card" data-testid={`comment-${comment.id}`}>
       <EditableCommentBody
